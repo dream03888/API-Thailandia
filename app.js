@@ -23,11 +23,11 @@ const io = require('socket.io')(httpServer, {
 
 // Initialize PostgreSQL Pool
 const pool = new Pool({
-  host: process.env.PG_HOST,
-  user: process.env.PG_USER,
-  password: process.env.PG_PASSWORD,
-  database: process.env.PG_DATABASE,
-  port: Number(process.env.PG_PORT || 5432),
+  host: process.env.PG_HOST || process.env.PGHOST,
+  user: process.env.PG_USER || process.env.PGUSER,
+  password: process.env.PG_PASSWORD || process.env.PGPASSWORD,
+  database: process.env.PG_DATABASE || process.env.PGDATABASE,
+  port: Number(process.env.PG_PORT || process.env.PGPORT || 5432),
   ssl: {
     rejectUnauthorized: false
   }
