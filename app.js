@@ -28,9 +28,7 @@ const pool = new Pool({
   password: process.env.PG_PASSWORD || process.env.PGPASSWORD,
   database: process.env.PG_DATABASE || process.env.PGDATABASE,
   port: Number(process.env.PG_PORT || process.env.PGPORT || 5432),
-  ssl: {
-    rejectUnauthorized: false
-  }
+  ssl: (process.env.PGHOST || process.env.RAILWAY_ENVIRONMENT) ? { rejectUnauthorized: false } : false
 });
 
 // Import shared logic/configs (if needed by other files)
