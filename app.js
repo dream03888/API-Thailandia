@@ -37,11 +37,11 @@ const pool = process.env.DATABASE_URL
       ssl: { rejectUnauthorized: false } 
     })
   : new Pool({
-      host: process.env.PG_HOST || 'localhost',
-      user: process.env.PG_USER,
-      password: process.env.PG_PASSWORD,
-      database: process.env.PG_DATABASE,
-      port: Number(process.env.PG_PORT || 5432),
+      host: process.env.PGHOST || process.env.PG_HOST || 'localhost',
+      user: process.env.PGUSER || process.env.PG_USER,
+      password: process.env.PGPASSWORD || process.env.PG_PASSWORD,
+      database: process.env.PGDATABASE || process.env.PG_DATABASE,
+      port: Number(process.env.PGPORT || process.env.PG_PORT || 5432),
     });
 
 // Import shared logic/configs (if needed by other files)
