@@ -1,6 +1,8 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
+console.log('[DB.js Debug] Checking DATABASE_URL:', !!process.env.DATABASE_URL);
+
 const pool = process.env.DATABASE_URL
   ? new Pool({
       connectionString: process.env.DATABASE_URL,

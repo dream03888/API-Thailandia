@@ -22,6 +22,14 @@ const io = require('socket.io')(httpServer, {
 });
 
 // Initialize PostgreSQL Pool
+console.log('[DB Debug] Checking DATABASE_URL existence:', !!process.env.DATABASE_URL);
+if (process.env.DATABASE_URL) {
+  console.log('[DB Debug] Using DATABASE_URL connection method');
+} else {
+  console.log('[DB Debug] DATABASE_URL NOT FOUND, using individual params');
+  console.log('[DB Debug] Targeted host:', process.env.PG_HOST || 'localhost');
+}
+
 const pool = process.env.DATABASE_URL
   ? new Pool({ 
       connectionString: process.env.DATABASE_URL, 
