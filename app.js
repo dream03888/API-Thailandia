@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 4300;
 const httpServer = http.createServer(app);
 
 // Initialize Socket.io
-const io = require('socket.io')(httpServer, { 
+const io = require('socket.io')(httpServer, {
   cors: { origin: '*' }
 });
 
@@ -28,6 +28,9 @@ const pool = new Pool({
   password: process.env.PG_PASSWORD,
   database: process.env.PG_DATABASE,
   port: Number(process.env.PG_PORT || 5432),
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 // Import shared logic/configs (if needed by other files)
@@ -64,53 +67,20 @@ app.use('/api/v1/other-charges', otherChargeRoutes);
 app.use('/api/v1/payments', paymentRoutes);
 
 // Socket.io Events
-pool.connect().then(() => {
-  console.log("Connected to PostgreSQL");
-  pool.query("LISTEN queue_trigger");
+// pool.connect().then(() => {
+//   console.log("Connected to PostgreSQL");
+//   pool.query("LISTEN queue_trigger");
+// });
+pool.query("SELECT 1")
+  .then(() => console.log("Connected to PostgreSQL"))
+  .catch(err => console.error("DB Error:", err));
+process.on('uncaughtException', err => {
+  console.error('Uncaught Exception:', err);
 });
 
-pool.on("notification", (msg) => {
-  io.emit("queue_refresh");
+process.on('unhandledRejection', err => {
+  console.error('Unhandled Rejection:', err);
 });
-
-io.on("connection", (socket) => {
-  socket.on("register_display", () => socket.join("display"));
-  socket.on("register_operator", () => socket.join("operator"));
-
-  socket.on("call_queue", async (payload) => {
-    try {
-      // Placeholder for queue logic
-      console.log("Call queue payload:", payload);
-    } catch (err) {
-      console.error(err);
-    }
-  });
-
-  // Additional legacy socket events stubs
-  socket.on("UpdatePassword", async (data) => {
-    // const result = await login.UpdatePassword(data.newPassword, data.user_id);
-    // socket.emit("return_UpdatePassword", result);
-  });
-
-
-  socket.on("transaction_insertUser", async (user , access , level ,admin) => {
-    const result = await login.trasctionInsertUser(user , access , level ,admin);
-    socket.emit("return_transaction_insertUser", result);
-  });
-
-  socket.on("getUser", async () => {
-    const result = await login.getUser();
-    socket.emit("return_getUser", result);
-  });
-
-  socket.on("insertLogStory", async (data) => {
-    const result = await login.InsertLogLogin(data);
-    socket.emit("return_insertLogStory", result);
-  });
-
-  socket.on("disconnect", () => {});
-});
-
 // Start Server
 httpServer.listen(PORT, () => {
   console.log(`API Server running on port ${PORT}`);
