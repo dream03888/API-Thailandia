@@ -22,6 +22,7 @@ const io = require('socket.io')(httpServer, {
 });
 
 // Initialize PostgreSQL Pool
+console.log('[DB Debug] Available Env Keys:', Object.keys(process.env).filter(k => k.startsWith('PG') || k.includes('DATABASE') || k.includes('RAILWAY')));
 console.log('[DB Debug] Checking DATABASE_URL existence:', !!process.env.DATABASE_URL);
 if (process.env.DATABASE_URL) {
   console.log('[DB Debug] Using DATABASE_URL connection method');
