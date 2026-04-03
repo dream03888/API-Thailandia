@@ -1,5 +1,6 @@
 const { Pool } = require('pg');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 console.log('[DB.js Debug] Available Env Keys:', Object.keys(process.env).filter(k => k.startsWith('PG') || k.includes('DATABASE') || k.includes('RAILWAY')));
 console.log('[DB.js Debug] Checking DATABASE_URL:', !!process.env.DATABASE_URL);

@@ -20,29 +20,28 @@ const httpServer = http.createServer(app);
 const io = require('socket.io')(httpServer, {
   cors: { origin: '*' }
 });
+app.set('io', io);
+
+io.on('connection', (socket) => {
+  console.log('[Socket] Client connected:', socket.id);
+
+  socket.on('join', (data) => {
+    if (data.role === 'admin' || data.role === 'superadmin') {
+      socket.join('admins');
+      console.log(`[Socket] ${socket.id} joined admins room`);
+    } else if (data.role === 'agent' && data.agent_id) {
+      socket.join(`agent_${data.agent_id}`);
+      console.log(`[Socket] ${socket.id} joined agent_${data.agent_id} room`);
+    }
+  });
+
+  socket.on('disconnect', () => {
+    console.log('[Socket] Client disconnected:', socket.id);
+  });
+});
 
 // Initialize PostgreSQL Pool
-console.log('[DB Debug] Available Env Keys:', Object.keys(process.env).filter(k => k.startsWith('PG') || k.includes('DATABASE') || k.includes('RAILWAY')));
-console.log('[DB Debug] Checking DATABASE_URL existence:', !!process.env.DATABASE_URL);
-if (process.env.DATABASE_URL) {
-  console.log('[DB Debug] Using DATABASE_URL connection method');
-} else {
-  console.log('[DB Debug] DATABASE_URL NOT FOUND, using individual params');
-  console.log('[DB Debug] Targeted host:', process.env.PG_HOST || 'localhost');
-}
-
-const pool = process.env.DATABASE_URL
-  ? new Pool({ 
-      connectionString: process.env.DATABASE_URL, 
-      ssl: { rejectUnauthorized: false } 
-    })
-  : new Pool({
-      host: process.env.PGHOST || process.env.PG_HOST || 'localhost',
-      user: process.env.PGUSER || process.env.PG_USER,
-      password: process.env.PGPASSWORD || process.env.PG_PASSWORD,
-      database: process.env.PGDATABASE || process.env.PG_DATABASE,
-      port: Number(process.env.PGPORT || process.env.PG_PORT || 5432),
-    });
+const { pool } = require('./src/db');
 
 // Import shared logic/configs (if needed by other files)
 // const google_api = require("./src/google_api.js");
@@ -62,6 +61,9 @@ const userRoutes = require('./src/routes/users');
 const markupRoutes = require('./src/routes/markups');
 const otherChargeRoutes = require('./src/routes/other-charges');
 const paymentRoutes = require('./src/routes/payments');
+const emailRoutes = require('./src/routes/email');
+const notificationRoutes = require('./src/routes/notifications');
+const userController = require('./src/controllers/userController');
 
 // Use Routes
 app.use('/api/v1/auth', authRoutes);
@@ -76,25 +78,32 @@ app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/markups', markupRoutes);
 app.use('/api/v1/other-charges', otherChargeRoutes);
 app.use('/api/v1/payments', paymentRoutes);
+app.use('/api/v1/emails', emailRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
 
-// Socket.io Events
-// pool.connect().then(() => {
-//   console.log("Connected to PostgreSQL");
-//   pool.query("LISTEN queue_trigger");
-// });
-pool.query("SELECT 1")
-  .then(() => console.log("Connected to PostgreSQL"))
-  .catch(err => console.error("DB Error:", err));
-process.on('uncaughtException', err => {
-  console.error('Uncaught Exception:', err);
-});
-
-process.on('unhandledRejection', err => {
-  console.error('Unhandled Rejection:', err);
-});
 // Start Server
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, async () => {
   console.log(`API Server running on port ${PORT}`);
+  
+  // Optional: Run migration on startup to ensure permissions are consistent
+  try {
+    const db = require('./src/db');
+    const result = await db.query('SELECT id, permissions FROM users');
+    let updatedCount = 0;
+    for (const user of result.rows) {
+      let perms = user.permissions;
+      if (perms && perms.pages && perms.pages.includes('add-quotation')) {
+        let pages = perms.pages.filter(p => p !== 'add-quotation');
+        if (!pages.includes('quotation')) pages.push('quotation');
+        perms.pages = Array.from(new Set(pages));
+        await db.query('UPDATE users SET permissions = $1 WHERE id = $2', [JSON.stringify(perms), user.id]);
+        updatedCount++;
+      }
+    }
+    if (updatedCount > 0) console.log(`[Migration] Updated permissions for ${updatedCount} users.`);
+  } catch (err) {
+    console.error('[Migration] Failed:', err);
+  }
 });
 
-module.exports = { app, io, pool };
+module.exports = { app, io, pool }; 

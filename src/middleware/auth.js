@@ -13,16 +13,29 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-const authorize = (roles = []) => {
+const authorize = (roles = [], pageId = null) => {
   if (typeof roles === 'string') {
     roles = [roles];
   }
 
   return (req, res, next) => {
-    if (roles.length && !roles.includes(req.user.role)) {
-      return res.status(403).json({ message: 'Forbidden' });
+    const user = req.user;
+    if (!user) return res.status(401).json({ message: 'Unauthorized' });
+
+    // 1. SuperAdmin bypass
+    if (user.role === 'superadmin') return next();
+
+    // 2. Role check
+    const hasRole = roles.length === 0 || roles.includes(user.role);
+
+    // 3. Granular Page Permission check
+    const hasPageAccess = pageId && user.permissions && user.permissions.pages && user.permissions.pages.includes(pageId);
+
+    if (hasRole || hasPageAccess) {
+      return next();
     }
-    next();
+
+    return res.status(403).json({ message: 'Forbidden' });
   };
 };
 

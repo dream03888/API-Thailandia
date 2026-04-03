@@ -11,8 +11,9 @@ exports.listOtherCharges = async (req, res) => {
 };
 
 exports.getOtherCharge = async (req, res) => {
+  const { id } = req.params;
   try {
-    const result = await db.query('SELECT * FROM others WHERE id = $1', [req.params.id]);
+    const result = await db.query('SELECT * FROM others WHERE id = $1', [id]);
     if (result.rows.length === 0) return res.status(404).json({ message: 'Charge not found' });
     res.json(result.rows[0]);
   } catch (err) {
@@ -36,11 +37,12 @@ exports.createOtherCharge = async (req, res) => {
 };
 
 exports.updateOtherCharge = async (req, res) => {
+  const { id } = req.params;
   const { description, amount, chargetype } = req.body;
   try {
     const result = await db.query(
       'UPDATE others SET description=$1, amount=$2, chargetype=$3, updated_at=CURRENT_TIMESTAMP WHERE id=$4 RETURNING *',
-      [description, amount, chargetype, req.params.id]
+      [description, amount, chargetype, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ message: 'Charge not found' });
     res.json(result.rows[0]);
@@ -51,8 +53,9 @@ exports.updateOtherCharge = async (req, res) => {
 };
 
 exports.deleteOtherCharge = async (req, res) => {
+  const { id } = req.params;
   try {
-    await db.query('DELETE FROM others WHERE id = $1', [req.params.id]);
+    await db.query('DELETE FROM others WHERE id = $1', [id]);
     res.json({ message: 'Charge deleted successfully' });
   } catch (err) {
     console.error(err);

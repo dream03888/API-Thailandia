@@ -1,9 +1,44 @@
 const db = require('../db');
 
 exports.listTransfers = async (req, res) => {
+  const { city, country, search, limit, page } = req.query;
+  const pLimit = parseInt(limit) || 25;
+  const pPage = parseInt(page) || 1;
+  const offset = (pPage - 1) * pLimit;
+
+  let query = `
+    SELECT t.*, COUNT(*) OVER() AS total_count 
+    FROM transfers t 
+    WHERE 1=1
+  `;
+  let params = [];
+  let paramIndex = 1;
+
+
+  if (city) {
+    query += ` AND t.city = $${paramIndex++}`;
+    params.push(city);
+  }
+  if (country) {
+    query += ` AND t.country = $${paramIndex++}`;
+    params.push(country);
+  }
+  if (search) {
+    query += ` AND (t.description ILIKE $${paramIndex} OR t.departure ILIKE $${paramIndex} OR t.arrival ILIKE $${paramIndex} OR t.supplier_name ILIKE $${paramIndex})`;
+    params.push(`%${search}%`);
+    paramIndex++;
+  }
+
+  query += ` ORDER BY t.id DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+  params.push(pLimit, offset);
+
   try {
-    const result = await db.query('SELECT * FROM transfers');
-    res.json(result.rows);
+    const result = await db.query(query, params);
+    const total = result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0;
+    res.json({
+      data: result.rows,
+      total: total
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Internal server error' });
@@ -13,47 +48,127 @@ exports.listTransfers = async (req, res) => {
 exports.getTransfer = async (req, res) => {
   const { id } = req.params;
   try {
-    const result = await db.query('SELECT * FROM transfers WHERE id = $1', [id]);
-    if (result.rows.length === 0) return res.status(404).json({ message: 'Transfer not found' });
-    res.json(result.rows[0]);
+    const transferResult = await db.query(`
+      SELECT t.* FROM transfers t WHERE t.id = $1
+    `, [id]);
+    
+    if (transferResult.rows.length === 0) return res.status(404).json({ message: 'Transfer not found' });
+
+    const transfer = transferResult.rows[0];
+
+    // Fetch associated pricing
+    const pricingResult = await db.query(
+      'SELECT * FROM transfer_pricing WHERE transfer_id = $1 ORDER BY start_date ASC',
+      [id]
+    );
+
+    res.json({ ...transfer, pricing: pricingResult.rows });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Internal server error' });
   }
 };
-
 exports.createTransfer = async (req, res) => {
-  const { city, supplier_id, from_location, to_location, description } = req.body;
+  const { 
+    transfer_type, city, country, description, departure, arrival, 
+    supplier_name, pricing 
+  } = req.body;
+  const client = await db.pool.connect();
   try {
-    const result = await db.query(
-      'INSERT INTO transfers (city, supplier_id, from_location, to_location, description) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [city, supplier_id, from_location, to_location, description]
+    await client.query('BEGIN');
+
+    const result = await client.query(
+      `INSERT INTO transfers (
+        transfer_type, city, country, description, departure, arrival, supplier_name, user_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [transfer_type, city, country || 'Thailand', description, departure, arrival, supplier_name || null, req.user.id]
     );
-    res.status(201).json(result.rows[0]);
+    const transferId = result.rows[0].id;
+
+    // Insert pricing if provided
+    if (pricing && Array.isArray(pricing)) {
+      for (const p of pricing) {
+        await client.query(
+          `INSERT INTO transfer_pricing (transfer_id, start_date, end_date, pax, price, cost, currency_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [transferId, p.start_date, p.end_date, p.pax, p.price, p.cost || 0, p.currency_id || 4]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    res.status(201).json({ ...result.rows[0], pricing: pricing || [] });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: 'Internal server error', error: err.message });
+  } finally {
+    client.release();
   }
 };
-
 exports.updateTransfer = async (req, res) => {
-  const { city, supplier_id, from_location, to_location, description } = req.body;
+  const { 
+    transfer_type, city, country, description, departure, arrival, 
+    supplier_name, pricing 
+  } = req.body;
+  const { id } = req.params;
+  const client = await db.pool.connect();
   try {
-    const result = await db.query(
-      'UPDATE transfers SET city=$1, supplier_id=$2, from_location=$3, to_location=$4, description=$5, updated_at=CURRENT_TIMESTAMP WHERE id=$6 RETURNING *',
-      [city, supplier_id, from_location, to_location, description, req.params.id]
+    await client.query('BEGIN');
+
+    const transRes = await client.query('SELECT user_id FROM transfers WHERE id = $1', [id]);
+    if (transRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Transfer not found' });
+    }
+    if (req.user.role === 'agent' && transRes.rows[0].user_id !== req.user.id) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const result = await client.query(
+      `UPDATE transfers SET 
+        transfer_type=$1, city=$2, country=$3, description=$4, 
+        departure=$5, arrival=$6, supplier_name=$7, 
+        updated_at=CURRENT_TIMESTAMP 
+      WHERE id=$8 RETURNING *`,
+      [transfer_type, city, country || 'Thailand', description, departure, arrival, supplier_name || null, id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ message: 'Transfer not found' });
-    res.json(result.rows[0]);
+
+    // Replace pricing: delete old, insert new
+    await client.query('DELETE FROM transfer_pricing WHERE transfer_id = $1', [id]);
+    if (pricing && Array.isArray(pricing)) {
+      for (const p of pricing) {
+        await client.query(
+          `INSERT INTO transfer_pricing (transfer_id, start_date, end_date, pax, price, cost, currency_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [id, p.start_date, p.end_date, p.pax, p.price, p.cost || 0, p.currency_id || 4]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ ...result.rows[0], pricing: pricing || [] });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: 'Internal server error', error: err.message });
+  } finally {
+    client.release();
   }
 };
 
 exports.deleteTransfer = async (req, res) => {
+  const { id } = req.params;
   try {
-    await db.query('DELETE FROM transfers WHERE id = $1', [req.params.id]);
+    const transRes = await db.query('SELECT user_id FROM transfers WHERE id = $1', [id]);
+    if (transRes.rows.length === 0) return res.status(404).json({ message: 'Transfer not found' });
+    
+    if (req.user.role === 'agent' && transRes.rows[0].user_id !== req.user.id) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    await db.query('DELETE FROM transfers WHERE id = $1', [id]);
     res.json({ message: 'Transfer deleted successfully' });
   } catch (err) {
     console.error(err);

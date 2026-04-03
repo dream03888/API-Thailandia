@@ -3,10 +3,10 @@ const router = express.Router();
 const hotelController = require('../controllers/hotelController');
 const { authenticateToken, authorize } = require('../middleware/auth');
 
-router.get('/', hotelController.listHotels);
+router.get('/', authenticateToken, authorize(['admin', 'superadmin'], 'cp_hotels'), hotelController.listHotels);
 router.get('/:id', hotelController.getHotel);
-router.post('/', authenticateToken, authorize('admin'), hotelController.createHotel);
-router.put('/:id', authenticateToken, authorize('admin'), hotelController.updateHotel);
-router.delete('/:id', authenticateToken, authorize('admin'), hotelController.deleteHotel);
+router.post('/', authenticateToken, authorize(['admin', 'superadmin'], 'cp_hotels'), hotelController.createHotel);
+router.put('/:id', authenticateToken, authorize(['admin', 'superadmin'], 'cp_hotels'), hotelController.updateHotel);
+router.delete('/:id', authenticateToken, authorize(['admin', 'superadmin'], 'cp_hotels'), hotelController.deleteHotel);
 
 module.exports = router;

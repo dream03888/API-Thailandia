@@ -1,9 +1,40 @@
 const db = require('../db');
 
 exports.listExcursions = async (req, res) => {
+  const { city, country, search, limit, page } = req.query;
+  const pLimit = parseInt(limit) || 25;
+  const pPage = parseInt(page) || 1;
+  const offset = (pPage - 1) * pLimit;
+
+  let query = 'SELECT *, COUNT(*) OVER() AS total_count FROM excursions WHERE 1=1';
+  let params = [];
+  let paramIndex = 1;
+
+
+  if (city) {
+    query += ` AND city = $${paramIndex++}`;
+    params.push(city);
+  }
+  if (country) {
+    query += ` AND country = $${paramIndex++}`;
+    params.push(country);
+  }
+  if (search) {
+    query += ` AND (name ILIKE $${paramIndex} OR description ILIKE $${paramIndex} OR supplier_name ILIKE $${paramIndex})`;
+    params.push(`%${search}%`);
+    paramIndex++;
+  }
+
+  query += ` ORDER BY name ASC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+  params.push(pLimit, offset);
+
   try {
-    const result = await db.query('SELECT * FROM excursions');
-    res.json(result.rows);
+    const result = await db.query(query, params);
+    const total = result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0;
+    res.json({
+      data: result.rows,
+      total: total
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Internal server error' });
@@ -13,9 +44,15 @@ exports.listExcursions = async (req, res) => {
 exports.getExcursion = async (req, res) => {
   const { id } = req.params;
   try {
-    const result = await db.query('SELECT * FROM excursions WHERE id = $1', [id]);
-    if (result.rows.length === 0) return res.status(404).json({ message: 'Excursion not found' });
-    res.json(result.rows[0]);
+    const excursionResult = await db.query('SELECT * FROM excursions WHERE id = $1', [id]);
+    if (excursionResult.rows.length === 0) return res.status(404).json({ message: 'Excursion not found' });
+    
+    const pricingResult = await db.query('SELECT * FROM excursion_pricing WHERE excursion_id = $1', [id]);
+    
+    const excursion = excursionResult.rows[0];
+    excursion.prices = pricingResult.rows;
+    
+    res.json(excursion);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Internal server error' });
@@ -23,37 +60,114 @@ exports.getExcursion = async (req, res) => {
 };
 
 exports.createExcursion = async (req, res) => {
-  const { city, name, description, supplier_id, valid_days } = req.body;
+  const client = await db.pool.connect();
   try {
-    const result = await db.query(
-      'INSERT INTO excursions (city, name, description, supplier_id, valid_days) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [city, name, description, supplier_id, valid_days]
+    await client.query('BEGIN');
+    const { 
+      name, city, country, code, description, 
+      sic_price_adult, sic_price_child, 
+      supplier_name, valid_days, prices 
+    } = req.body;
+
+    const excursionResult = await client.query(
+      `INSERT INTO excursions (
+        name, city, country, code, description, 
+        sic_price_adult, sic_price_child, 
+        supplier_name, valid_days, user_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [name, city, country || 'Thailand', code, description, sic_price_adult, sic_price_child, supplier_name, valid_days, req.user.id]
     );
-    res.status(201).json(result.rows[0]);
+
+    const excursionId = excursionResult.rows[0].id;
+
+    if (prices && Array.isArray(prices)) {
+      for (const p of prices) {
+        await client.query(
+          `INSERT INTO excursion_pricing (
+            excursion_id, start_date, end_date, pax, price, cost, currency_id
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [excursionId, p.start_date, p.end_date, p.pax, p.price, p.cost || p.price, p.currency_id || 1]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    res.status(201).json(excursionResult.rows[0]);
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err);
     res.status(500).json({ message: 'Internal server error' });
+  } finally {
+    client.release();
   }
 };
 
 exports.updateExcursion = async (req, res) => {
-  const { city, name, description, supplier_id, valid_days } = req.body;
+  const client = await db.pool.connect();
+  const { id } = req.params;
   try {
-    const result = await db.query(
-      'UPDATE excursions SET city=$1, name=$2, description=$3, supplier_id=$4, valid_days=$5, updated_at=CURRENT_TIMESTAMP WHERE id=$6 RETURNING *',
-      [city, name, description, supplier_id, valid_days, req.params.id]
+    await client.query('BEGIN');
+    const { 
+      name, city, country, code, description, 
+      sic_price_adult, sic_price_child, 
+      supplier_name, valid_days, prices 
+    } = req.body;
+
+    const excRes = await client.query('SELECT user_id FROM excursions WHERE id = $1', [id]);
+    if (excRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Excursion not found' });
+    }
+    if (req.user.role === 'agent' && excRes.rows[0].user_id !== req.user.id) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const result = await client.query(
+      `UPDATE excursions SET 
+        name=$1, city=$2, country=$3, code=$4, description=$5, 
+        sic_price_adult=$6, sic_price_child=$7, 
+        supplier_name=$8, valid_days=$9, updated_at=CURRENT_TIMESTAMP 
+      WHERE id=$10 RETURNING *`,
+      [name, city, country || 'Thailand', code, description, sic_price_adult, sic_price_child, supplier_name, valid_days, id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ message: 'Excursion not found' });
+
+    // Update prices: Delete old and insert new
+    await client.query('DELETE FROM excursion_pricing WHERE excursion_id = $1', [id]);
+
+    if (prices && Array.isArray(prices)) {
+      for (const p of prices) {
+        await client.query(
+          `INSERT INTO excursion_pricing (
+            excursion_id, start_date, end_date, pax, price, cost, currency_id
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [id, p.start_date, p.end_date, p.pax, p.price, p.cost || p.price, p.currency_id || 1]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
     res.json(result.rows[0]);
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err);
     res.status(500).json({ message: 'Internal server error' });
+  } finally {
+    client.release();
   }
 };
 
 exports.deleteExcursion = async (req, res) => {
+  const { id } = req.params;
   try {
-    await db.query('DELETE FROM excursions WHERE id = $1', [req.params.id]);
+    const excRes = await db.query('SELECT user_id FROM excursions WHERE id = $1', [id]);
+    if (excRes.rows.length === 0) return res.status(404).json({ message: 'Excursion not found' });
+    
+    if (req.user.role === 'agent' && excRes.rows[0].user_id !== req.user.id) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    await db.query('DELETE FROM excursions WHERE id = $1', [id]);
     res.json({ message: 'Excursion deleted successfully' });
   } catch (err) {
     console.error(err);

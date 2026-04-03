@@ -19,7 +19,7 @@ exports.login = async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, username: user.username, role: user.role, agent_id: user.agent_id },
+      { id: user.id, username: user.username, role: user.role, agent_id: user.agent_id, permissions: user.permissions },
       process.env.JWT_SECRET || 'your_jwt_secret',
       { expiresIn: '24h' }
     );
@@ -30,7 +30,8 @@ exports.login = async (req, res) => {
         id: user.id,
         username: user.username,
         role: user.role,
-        agent_id: user.agent_id
+        agent_id: user.agent_id,
+        permissions: user.permissions
       }
     });
   } catch (err) {
