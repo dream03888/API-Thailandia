@@ -13,20 +13,25 @@ exports.listTrips = async (req, res) => {
   const { status } = req.query;
   const user = req.user;
   
-  let query = 'SELECT * FROM trips';
+  let query = `
+    SELECT t.*, u.username as user_name, a.name as agent_name 
+    FROM trips t
+    LEFT JOIN users u ON t.user_id = u.id
+    LEFT JOIN agents a ON t.agent_id = a.id
+  `;
   let params = [];
   let whereClauses = [];
 
   // 1. Role-based filtering
   if (user.role === 'agent') {
     // UPDATED: Agent now sees ONLY their own created trips (user-level ownership)
-    whereClauses.push(`user_id = $${params.length + 1}`);
+    whereClauses.push(`t.user_id = $${params.length + 1}`);
     params.push(user.id);
   }
 
   // 2. Status filtering
   if (status) {
-    whereClauses.push(`approved = $${params.length + 1}`);
+    whereClauses.push(`t.approved = $${params.length + 1}`);
     params.push(status === 'approved');
   }
 
@@ -34,7 +39,7 @@ exports.listTrips = async (req, res) => {
     query += ' WHERE ' + whereClauses.join(' AND ');
   }
 
-  query += ' ORDER BY created_at DESC';
+  query += ' ORDER BY t.created_at DESC';
 
   try {
     const result = await db.query(query, params);
@@ -48,7 +53,13 @@ exports.listTrips = async (req, res) => {
 exports.getTrip = async (req, res) => {
   const { id } = req.params;
   try {
-    const tripResult = await db.query('SELECT * FROM trips WHERE id::text = $1 OR uuid::text = $1', [id]);
+    const tripResult = await db.query(`
+      SELECT t.*, u.username as user_name, a.name as agent_name 
+      FROM trips t
+      LEFT JOIN users u ON t.user_id = u.id
+      LEFT JOIN agents a ON t.agent_id = a.id
+      WHERE t.id::text = $1 OR t.uuid::text = $1
+    `, [id]);
     if (tripResult.rows.length === 0) return res.status(404).json({ message: 'Trip not found' });
     
     const trip = tripResult.rows[0];
@@ -59,15 +70,32 @@ exports.getTrip = async (req, res) => {
     }
     const hotelItems = await db.query('SELECT * FROM hotel_trip_items WHERE trip_item_id = $1', [trip.id]);
     const transferItems = await db.query('SELECT * FROM transfer_trip_items WHERE trip_item_id = $1', [trip.id]);
-    const excursionItems = await db.query('SELECT * FROM excursion_trip_items WHERE trip_item_id = $1', [trip.id]);
-    const tourItems = await db.query('SELECT * FROM tour_trip_items WHERE trip_item_id = $1', [trip.id]);
+    const excursionItems = await db.query(`
+      SELECT eti.*, e.name as excursion_name 
+      FROM excursion_trip_items eti
+      JOIN excursions e ON eti.excursion_id = e.id
+      WHERE eti.trip_item_id = $1
+    `, [trip.id]);
+    const tourItems = await db.query(`
+      SELECT tti.*, t.name as tour_name 
+      FROM tour_trip_items tti
+      JOIN tours t ON tti.tour_id = t.id
+      WHERE tti.trip_item_id = $1
+    `, [trip.id]);
     const flightItems = await db.query('SELECT * FROM flight_trip_items WHERE trip_item_id = $1', [trip.id]);
+    const otherItems = await db.query(`
+      SELECT oti.*, o.description, o.amount as price 
+      FROM other_trip_items oti
+      JOIN others o ON oti.other_id = o.id
+      WHERE oti.trip_item_id = $1
+    `, [trip.id]);
 
     trip.hotels = hotelItems.rows;
     trip.transfers = transferItems.rows;
     trip.excursions = excursionItems.rows;
     trip.tours = tourItems.rows;
     trip.flights = flightItems.rows;
+    trip.other = otherItems.rows;
 
     res.json(trip);
   } catch (err) {
@@ -179,11 +207,18 @@ exports.createTrip = async (req, res) => {
     trip.other = [];
     if (other && other.length > 0) {
       for (const item of other) {
-        const res = await db.query(
-          'INSERT INTO other_trip_items (trip_item_id, from_date, to_date) VALUES ($1, $2, $3) RETURNING *',
-          [trip.id, item.date || null, item.date || null]
-        );
-        trip.other.push(res.rows[0]);
+        let otherId = item.other_id;
+        if (!otherId && item.description) {
+           const oRes = await db.query("INSERT INTO others (description, amount, chargetype) VALUES ($1, $2, 'per unit') RETURNING id", [item.description, item.totalPrice || item.price || 0]);
+           otherId = oRes.rows[0].id;
+        }
+        if (otherId) {
+          const res = await db.query(
+            'INSERT INTO other_trip_items (trip_item_id, other_id, from_date, to_date) VALUES ($1, $2, $3, $4) RETURNING *',
+            [trip.id, otherId, item.date || null, item.date || null]
+          );
+          trip.other.push(res.rows[0]);
+        }
       }
     }
 
@@ -324,12 +359,21 @@ exports.updateTrip = async (req, res) => {
       }
     }
     trip.other = [];
-    if (other) {
-       for (const item of other) {
-         const res = await db.query('INSERT INTO other_trip_items (trip_item_id, from_date, to_date) VALUES ($1,$2,$3) RETURNING *',
-           [trip.id, item.date || null, item.date || null]);
-         trip.other.push(res.rows[0]);
-       }
+    if (other && other.length > 0) {
+      for (const item of other) {
+        let otherId = item.other_id;
+        if (!otherId && item.description) {
+           const oRes = await db.query("INSERT INTO others (description, amount, chargetype) VALUES ($1, $2, 'per unit') RETURNING id", [item.description, item.totalPrice || item.price || 0]);
+           otherId = oRes.rows[0].id;
+        }
+        if (otherId) {
+          const res = await db.query(
+            'INSERT INTO other_trip_items (trip_item_id, other_id, from_date, to_date) VALUES ($1, $2, $3, $4) RETURNING *',
+            [trip.id, otherId, item.date || null, item.date || null]
+          );
+          trip.other.push(res.rows[0]);
+        }
+      }
     }
 
     await db.query('COMMIT');
