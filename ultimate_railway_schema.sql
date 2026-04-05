@@ -98,6 +98,7 @@ CREATE TABLE IF NOT EXISTS trips (
     declined BOOLEAN DEFAULT FALSE,
     status VARCHAR(20) DEFAULT 'InProgress',
     trip_start_date DATE,
+    is_booking BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

@@ -23,8 +23,8 @@ exports.listTrips = async (req, res) => {
   let whereClauses = [];
 
   // 1. Role-based filtering
-  if (user.role === 'agent') {
-    // UPDATED: Agent now sees ONLY their own created trips (user-level ownership)
+  if (user.role !== 'admin' && user.role !== 'superadmin') {
+    // UPDATED: Anyone who is not an admin/superadmin sees ONLY their own created trips (user-level ownership)
     whereClauses.push(`t.user_id = $${params.length + 1}`);
     params.push(user.id);
   }
@@ -39,7 +39,7 @@ exports.listTrips = async (req, res) => {
     query += ' WHERE ' + whereClauses.join(' AND ');
   }
 
-  query += ' ORDER BY t.created_at DESC';
+  query += ' ORDER BY t.approved DESC, t.created_at DESC';
 
   try {
     const result = await db.query(query, params);
@@ -64,8 +64,8 @@ exports.getTrip = async (req, res) => {
     
     const trip = tripResult.rows[0];
 
-    // Ownership Enforcement: Agents can only get their own trips
-    if (req.user.role === 'agent' && trip.user_id !== req.user.id) {
+    // Ownership Enforcement: Non-admins can only get their own trips
+    if (req.user.role !== 'admin' && req.user.role !== 'superadmin' && trip.user_id !== req.user.id) {
       return res.status(403).json({ message: 'Access denied: You do not own this trip' });
     }
     const hotelItems = await db.query('SELECT * FROM hotel_trip_items WHERE trip_item_id = $1', [trip.id]);
@@ -482,3 +482,59 @@ exports.deleteTrip = async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
+
+exports.convertToBooking = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await db.query(
+      'UPDATE trips SET is_booking = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id::text = $1 OR uuid::text = $1 RETURNING *',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Trip not found' });
+    }
+    const trip = result.rows[0];
+
+    // Notification
+    const io = req.app.get('io');
+    const title = 'Converted to Booking';
+    const message = `Quotation for ${trip.client_name} (Ref: ${trip.booking_reference || 'N/A'}) has been converted to a Booking!`;
+
+    let notificationId = Date.now();
+    try {
+      const notifResult = await db.query(
+        'INSERT INTO notifications (type, title, message, link_id, agent_id) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+        ['BookingConverted', title, message, trip.uuid || trip.id, trip.agent_id || null]
+      );
+      notificationId = notifResult.rows[0].id;
+    } catch (dbErr) {
+      console.error('Error saving convert notification:', dbErr);
+    }
+
+    if (io) {
+      const payload = {
+        id: notificationId,
+        uuid: trip.uuid,
+        client_name: trip.client_name,
+        type: 'BookingConverted',
+        message: message,
+        timestamp: new Date()
+      };
+      
+      // Target admins
+      io.to('admins').emit('notification:booking_converted', payload);
+      
+      // Target specific agent if exists
+      if (trip.agent_id) {
+        io.to(`agent_${trip.agent_id}`).emit('notification:booking_converted', payload);
+      }
+    }
+
+    res.json({ message: 'Successfully converted to booking', trip });
+  } catch (err) {
+    console.error('Error in convertToBooking:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+

@@ -8,6 +8,7 @@ router.get('/:id', authenticateToken, tripController.getTrip);
 router.post('/', authenticateToken, tripController.createTrip);
 router.put('/:id', authenticateToken, tripController.updateTrip);
 router.put('/:id/status', authenticateToken, tripController.updateTripStatus);
+router.put('/:id/convert', authenticateToken, tripController.convertToBooking);
 router.delete('/:id', authenticateToken, tripController.deleteTrip);
 
 module.exports = router;
