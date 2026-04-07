@@ -48,6 +48,10 @@ exports.createUser = async (req, res) => {
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
+    if (err.code === '23505') {
+      const field = err.detail.includes('username') ? 'Username' : 'Email';
+      return res.status(400).json({ message: `${field} already exists. Please use a different one.` });
+    }
     console.error(err);
     res.status(500).json({ message: 'Internal server error' });
   }
@@ -80,6 +84,10 @@ exports.updateUser = async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ message: 'User not found' });
     res.json(result.rows[0]);
   } catch (err) {
+    if (err.code === '23505') {
+      const field = err.detail.includes('username') ? 'Username' : 'Email';
+      return res.status(400).json({ message: `${field} already exists. Please use a different one.` });
+    }
     console.error(err);
     res.status(500).json({ message: 'Internal server error' });
   }
