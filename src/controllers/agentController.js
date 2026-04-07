@@ -29,7 +29,8 @@ exports.createAgent = async (req, res) => {
     res.status(201).json(result.rows[0]);
   } catch (err) {
     if (err.code === '23505') {
-      return res.status(400).json({ message: 'This email is already registered to another agent.' });
+      const field = err.detail.includes('name') ? 'Name' : 'Field';
+      return res.status(400).json({ message: `This ${field.toLowerCase()} is already registered to another agent.` });
     }
     console.error(err);
     res.status(500).json({ message: 'Internal server error' });
@@ -54,6 +55,10 @@ exports.updateAgent = async (req, res) => {
     );
     res.json(result.rows[0]);
   } catch (err) {
+    if (err.code === '23505') {
+      const field = err.detail.includes('name') ? 'Name' : 'Field';
+      return res.status(400).json({ message: `This ${field.toLowerCase()} is already registered to another agent.` });
+    }
     console.error(err);
     res.status(500).json({ message: 'Internal server error' });
   }
