@@ -75,6 +75,14 @@ exports.createTransfer = async (req, res) => {
   } = req.body;
   const client = await db.pool.connect();
   try {
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    const permissions = req.user.permissions || {};
+    const canAdd = permissions.all || permissions.module_permissions?.cp_transfers?.add;
+
+    if (!isAdmin && !canAdd) {
+      return res.status(403).json({ message: 'Access denied: You do not have permission to create transfers' });
+    }
+
     await client.query('BEGIN');
 
     const result = await client.query(
@@ -121,9 +129,14 @@ exports.updateTransfer = async (req, res) => {
       await client.query('ROLLBACK');
       return res.status(404).json({ message: 'Transfer not found' });
     }
-    if (req.user.role === 'agent' && transRes.rows[0].user_id !== req.user.id) {
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    const isOwner = transRes.rows[0].user_id === req.user.id;
+    const permissions = req.user.permissions || {};
+    const canEdit = permissions.all || permissions.module_permissions?.cp_transfers?.edit;
+
+    if (!isAdmin && !isOwner && !canEdit) {
       await client.query('ROLLBACK');
-      return res.status(403).json({ message: 'Access denied' });
+      return res.status(403).json({ message: 'Access denied: You do not have permission to update transfers' });
     }
 
     const result = await client.query(
@@ -164,8 +177,13 @@ exports.deleteTransfer = async (req, res) => {
     const transRes = await db.query('SELECT user_id FROM transfers WHERE id = $1', [id]);
     if (transRes.rows.length === 0) return res.status(404).json({ message: 'Transfer not found' });
     
-    if (req.user.role === 'agent' && transRes.rows[0].user_id !== req.user.id) {
-      return res.status(403).json({ message: 'Access denied' });
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    const isOwner = transRes.rows[0].user_id === req.user.id;
+    const permissions = req.user.permissions || {};
+    const canDelete = permissions.all || permissions.module_permissions?.cp_transfers?.delete;
+
+    if (!isAdmin && !isOwner && !canDelete) {
+      return res.status(403).json({ message: 'Access denied: You do not have permission to delete transfers' });
     }
 
     await db.query('DELETE FROM transfers WHERE id = $1', [id]);

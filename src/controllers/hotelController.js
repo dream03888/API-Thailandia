@@ -67,8 +67,12 @@ exports.getHotel = async (req, res) => {
 exports.createHotel = async (req, res) => {
   const { name, city, notes, address, contacts, roomTypes, promotions, fees } = req.body;
   try {
-    if (req.user.role === 'agent') {
-      return res.status(403).json({ message: 'Access denied: Agents cannot create hotels' });
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    const permissions = req.user.permissions || {};
+    const canAdd = permissions.all || permissions.module_permissions?.cp_hotels?.add;
+
+    if (!isAdmin && !canAdd) {
+      return res.status(403).json({ message: 'Access denied: You do not have permission to create hotels' });
     }
     await db.query('BEGIN');
     
@@ -125,8 +129,12 @@ exports.updateHotel = async (req, res) => {
   const { id } = req.params;
   const { name, city, notes, address, contacts, roomTypes, promotions, fees } = req.body;
   try {
-    if (req.user.role === 'agent') {
-      return res.status(403).json({ message: 'Access denied: Agents cannot update hotels' });
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    const permissions = req.user.permissions || {};
+    const canEdit = permissions.all || permissions.module_permissions?.cp_hotels?.edit;
+
+    if (!isAdmin && !canEdit) {
+      return res.status(403).json({ message: 'Access denied: You do not have permission to update hotels' });
     }
     await db.query('BEGIN');
     
@@ -190,8 +198,12 @@ exports.updateHotel = async (req, res) => {
 
 exports.deleteHotel = async (req, res) => {
   try {
-    if (req.user.role === 'agent') {
-      return res.status(403).json({ message: 'Access denied: Agents cannot delete hotels' });
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    const permissions = req.user.permissions || {};
+    const canDelete = permissions.all || permissions.module_permissions?.cp_hotels?.delete;
+
+    if (!isAdmin && !canDelete) {
+      return res.status(403).json({ message: 'Access denied: You do not have permission to delete hotels' });
     }
     await db.query('DELETE FROM hotels WHERE id = $1', [req.params.id]);
     res.json({ message: 'Hotel deleted successfully' });

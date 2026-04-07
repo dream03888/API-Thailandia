@@ -63,6 +63,15 @@ exports.createExcursion = async (req, res) => {
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    const permissions = req.user.permissions || {};
+    const canAdd = permissions.all || permissions.module_permissions?.cp_excursions?.add;
+
+    if (!isAdmin && !canAdd) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ message: 'Access denied: You do not have permission to create excursions' });
+    }
+
     const { 
       name, city, country, code, description, 
       sic_price_adult, sic_price_child, 
@@ -118,9 +127,14 @@ exports.updateExcursion = async (req, res) => {
       await client.query('ROLLBACK');
       return res.status(404).json({ message: 'Excursion not found' });
     }
-    if (req.user.role === 'agent' && excRes.rows[0].user_id !== req.user.id) {
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    const isOwner = excRes.rows[0].user_id === req.user.id;
+    const permissions = req.user.permissions || {};
+    const canEdit = permissions.all || permissions.module_permissions?.cp_excursions?.edit;
+
+    if (!isAdmin && !isOwner && !canEdit) {
       await client.query('ROLLBACK');
-      return res.status(403).json({ message: 'Access denied' });
+      return res.status(403).json({ message: 'Access denied: You do not have permission to update excursions' });
     }
 
     const result = await client.query(
@@ -163,8 +177,13 @@ exports.deleteExcursion = async (req, res) => {
     const excRes = await db.query('SELECT user_id FROM excursions WHERE id = $1', [id]);
     if (excRes.rows.length === 0) return res.status(404).json({ message: 'Excursion not found' });
     
-    if (req.user.role === 'agent' && excRes.rows[0].user_id !== req.user.id) {
-      return res.status(403).json({ message: 'Access denied' });
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    const isOwner = excRes.rows[0].user_id === req.user.id;
+    const permissions = req.user.permissions || {};
+    const canDelete = permissions.all || permissions.module_permissions?.cp_excursions?.delete;
+
+    if (!isAdmin && !isOwner && !canDelete) {
+      return res.status(403).json({ message: 'Access denied: You do not have permission to delete excursions' });
     }
 
     await db.query('DELETE FROM excursions WHERE id = $1', [id]);

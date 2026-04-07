@@ -33,13 +33,34 @@ exports.createUser = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     
     // Determine default permissions based on role
-    let permissions = {};
+    let permissions = {
+      pages: [],
+      module_permissions: {},
+      notifications_enabled: true
+    };
+
+    const allModules = [
+      'quotation', 'cp_activities', 'cp_agents', 'cp_bookings', 'cp_excursions', 
+      'cp_hotels', 'cp_markups', 'cp_other_charges', 'cp_suppliers', 
+      'cp_tools', 'cp_tours', 'cp_transfers', 'cp_users'
+    ];
+
     if (role === 'superadmin') {
-      permissions = { all: true, manage_users: true, control_panel: true, settings: true, notifications_enabled: true, pages: ['home', 'quotation', 'payment', 'itinerary', 'analytics', 'settings', 'cp_activities', 'cp_agents', 'cp_bookings', 'cp_excursions', 'cp_hotels', 'cp_markups', 'cp_other_charges', 'cp_suppliers', 'cp_tools', 'cp_tours', 'cp_transfers', 'cp_users'] };
+      permissions.all = true;
+      permissions.pages = ['home', 'quotation', 'payment', 'itinerary', 'analytics', 'settings', ...allModules];
+      allModules.forEach(m => {
+        permissions.module_permissions[m] = { view: true, add: true, edit: true, delete: true };
+      });
     } else if (role === 'admin') {
-      permissions = { control_panel: true, bookings: 'all', hotels: 'all', transfers: 'all', excursions: 'all', tours: 'all', notifications_enabled: true, pages: ['home', 'quotation', 'payment', 'itinerary', 'analytics', 'cp_activities', 'cp_agents', 'cp_bookings', 'cp_excursions', 'cp_hotels', 'cp_markups', 'cp_other_charges', 'cp_suppliers', 'cp_tools', 'cp_tours', 'cp_transfers'] };
+      permissions.pages = ['home', 'quotation', 'payment', 'itinerary', 'analytics', ...allModules];
+      allModules.forEach(m => {
+        permissions.module_permissions[m] = { view: true, add: true, edit: true, delete: true };
+      });
     } else {
-      permissions = { bookings: 'own', hotels: 'read', transfers: 'read', excursions: 'read', tours: 'read', notifications_enabled: true, pages: ['home', 'quotation', 'payment', 'itinerary'] };
+      permissions.pages = ['home', 'quotation', 'payment', 'itinerary'];
+      allModules.forEach(m => {
+        permissions.module_permissions[m] = { view: true, add: false, edit: false, delete: false };
+      });
     }
 
     const result = await db.query(
@@ -109,13 +130,34 @@ exports.updateRole = async (req, res) => {
 
   try {
     // Determine default permissions for the new role
-    let permissions = {};
+    let permissions = {
+      pages: [],
+      module_permissions: {},
+      notifications_enabled: true
+    };
+
+    const allModules = [
+      'quotation', 'cp_activities', 'cp_agents', 'cp_bookings', 'cp_excursions', 
+      'cp_hotels', 'cp_markups', 'cp_other_charges', 'cp_suppliers', 
+      'block_tools', 'cp_tours', 'cp_transfers', 'cp_users'
+    ];
+
     if (role === 'superadmin') {
-      permissions = { all: true, manage_users: true, control_panel: true, settings: true, notifications_enabled: true, pages: ['home', 'quotation', 'payment', 'itinerary', 'analytics', 'settings', 'cp_activities', 'cp_agents', 'cp_bookings', 'cp_excursions', 'cp_hotels', 'cp_markups', 'cp_other_charges', 'cp_suppliers', 'cp_tools', 'cp_tours', 'cp_transfers', 'cp_users'] };
+      permissions.all = true;
+      permissions.pages = ['home', 'quotation', 'payment', 'itinerary', 'analytics', 'settings', ...allModules];
+      allModules.forEach(m => {
+        permissions.module_permissions[m] = { view: true, add: true, edit: true, delete: true };
+      });
     } else if (role === 'admin') {
-      permissions = { control_panel: true, bookings: 'all', hotels: 'all', transfers: 'all', excursions: 'all', tours: 'all', notifications_enabled: true, pages: ['home', 'quotation', 'payment', 'itinerary', 'analytics', 'cp_activities', 'cp_agents', 'cp_bookings', 'cp_excursions', 'cp_hotels', 'cp_markups', 'cp_other_charges', 'cp_suppliers', 'cp_tools', 'cp_tours', 'cp_transfers'] };
+      permissions.pages = ['home', 'quotation', 'payment', 'itinerary', 'analytics', ...allModules];
+      allModules.forEach(m => {
+        permissions.module_permissions[m] = { view: true, add: true, edit: true, delete: true };
+      });
     } else {
-      permissions = { bookings: 'own', hotels: 'read', transfers: 'read', excursions: 'read', tours: 'read', notifications_enabled: true, pages: ['home', 'quotation', 'payment', 'itinerary'] };
+      permissions.pages = ['home', 'quotation', 'payment', 'itinerary'];
+      allModules.forEach(m => {
+        permissions.module_permissions[m] = { view: true, add: false, edit: false, delete: false };
+      });
     }
 
     const result = await db.query(
@@ -151,25 +193,47 @@ exports.updatePermissions = async (req, res) => {
 
 exports.migratePermissions = async (req, res) => {
   try {
-    const result = await db.query('SELECT id, permissions FROM users');
+    const result = await db.query('SELECT id, role, permissions FROM users');
     let updatedCount = 0;
 
+    const allModules = [
+      'quotation', 'cp_activities', 'cp_agents', 'cp_bookings', 'cp_excursions', 
+      'cp_hotels', 'cp_markups', 'cp_other_charges', 'cp_suppliers', 
+      'cp_tools', 'cp_tours', 'cp_transfers', 'cp_users'
+    ];
+
     for (const user of result.rows) {
-      let perms = user.permissions;
-      if (perms && perms.pages) {
-        let pages = perms.pages;
-        if (pages.includes('add-quotation')) {
-          pages = pages.filter(p => p !== 'add-quotation');
-          if (!pages.includes('quotation')) {
-            pages.push('quotation');
-          }
-          perms.pages = Array.from(new Set(pages));
-          await db.query('UPDATE users SET permissions = $1 WHERE id = $2', [JSON.stringify(perms), user.id]);
-          updatedCount++;
-        }
+      let perms = user.permissions || {};
+      let needsUpdate = false;
+
+      // 1. Ensure pages exists
+      if (!perms.pages) {
+        perms.pages = ['home', 'quotation', 'payment', 'itinerary'];
+        needsUpdate = true;
+      }
+
+      // 2. Ensure module_permissions exists and is structured
+      if (!perms.module_permissions) {
+        perms.module_permissions = {};
+        allModules.forEach(m => {
+          const hasPage = perms.pages.includes(m);
+          const isFull = perms.all || user.role === 'superadmin' || user.role === 'admin';
+          perms.module_permissions[m] = {
+            view: hasPage,
+            add: isFull,
+            edit: isFull,
+            delete: isFull
+          };
+        });
+        needsUpdate = true;
+      }
+
+      if (needsUpdate) {
+        await db.query('UPDATE users SET permissions = $1 WHERE id = $2', [JSON.stringify(perms), user.id]);
+        updatedCount++;
       }
     }
-    res.json({ message: `Migration complete. Updated ${updatedCount} users.` });
+    res.json({ message: `Migration to granular permissions complete. Updated ${updatedCount} users.` });
   } catch (err) {
     console.error('Migration error:', err);
     res.status(500).json({ message: 'Migration failed.' });

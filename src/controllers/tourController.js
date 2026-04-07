@@ -80,6 +80,14 @@ exports.createTour = async (req, res) => {
   } = req.body;
 
   try {
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    const permissions = req.user.permissions || {};
+    const canAdd = permissions.all || permissions.module_permissions?.cp_tours?.add;
+
+    if (!isAdmin && !canAdd) {
+      return res.status(403).json({ message: 'Access denied: You do not have permission to create tours' });
+    }
+
     await client.query('BEGIN');
 
     // Normalize departures to accepted DB values ('PVT' | 'SIC')
@@ -158,9 +166,14 @@ exports.updateTour = async (req, res) => {
       await client.query('ROLLBACK');
       return res.status(404).json({ message: 'Tour not found' });
     }
-    if (req.user.role === 'agent' && tourRes.rows[0].user_id !== req.user.id) {
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    const isOwner = tourRes.rows[0].user_id === req.user.id;
+    const permissions = req.user.permissions || {};
+    const canEdit = permissions.all || permissions.module_permissions?.cp_tours?.edit;
+
+    if (!isAdmin && !isOwner && !canEdit) {
       await client.query('ROLLBACK');
-      return res.status(403).json({ message: 'Access denied' });
+      return res.status(403).json({ message: 'Access denied: You do not have permission to update tours' });
     }
 
     // Normalize departures to accepted DB values ('PVT' | 'SIC')
@@ -235,8 +248,13 @@ exports.deleteTour = async (req, res) => {
     const tourRes = await db.query('SELECT user_id FROM tours WHERE id::text = $1', [id]);
     if (tourRes.rows.length === 0) return res.status(404).json({ message: 'Tour not found' });
     
-    if (req.user.role === 'agent' && tourRes.rows[0].user_id !== req.user.id) {
-      return res.status(403).json({ message: 'Access denied' });
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    const isOwner = tourRes.rows[0].user_id === req.user.id;
+    const permissions = req.user.permissions || {};
+    const canDelete = permissions.all || permissions.module_permissions?.cp_tours?.delete;
+
+    if (!isAdmin && !isOwner && !canDelete) {
+      return res.status(403).json({ message: 'Access denied: You do not have permission to delete tours' });
     }
 
     await db.query('DELETE FROM tours WHERE id::text = $1', [id]);
