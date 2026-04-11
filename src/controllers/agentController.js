@@ -50,7 +50,7 @@ exports.updateAgent = async (req, res) => {
     }
 
     const result = await db.query(
-      'UPDATE agents SET name=$1, markup_group=$2, address=$3, email=$4, telephone=$5, fax=$6, updated_at=CURRENT_TIMESTAMP WHERE id=$7 RETURNING *',
+      'UPDATE agents SET name=$1, markup_group=$2, address=$3, email=$4, telephone=$5, fax=$6 WHERE id=$7 RETURNING *',
       [name, markup_group, address, email, telephone, fax, req.params.id]
     );
     res.json(result.rows[0]);
