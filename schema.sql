@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS hotel_fees (
     currency_id INTEGER REFERENCES currencies(id) ON DELETE RESTRICT,
     christmas_dinner_fee DECIMAL(10, 2),
     new_year_dinner_fee DECIMAL(10, 2),
+    late_checkout_21_fee INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

@@ -1,12 +1,29 @@
 const db = require('../db');
 
+exports.listCities = async (req, res) => {
+  try {
+    const result = await db.query('SELECT DISTINCT city FROM currencies WHERE city IS NOT NULL AND city != \'\' ORDER BY city ASC');
+    res.json(result.rows.map(row => row.city));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 exports.listHotels = async (req, res) => {
   const { city, country, search, limit, page } = req.query;
   const pLimit = parseInt(limit) || 25;
   const pPage = parseInt(page) || 1;
   const offset = (pPage - 1) * pLimit;
 
-  let query = 'SELECT *, COUNT(*) OVER() AS total_count FROM hotels WHERE 1=1';
+  let query = `
+    SELECT 
+      h.*, 
+      EXISTS(SELECT 1 FROM room_types rt WHERE rt.hotel_id = h.id) as has_pricing,
+      COUNT(*) OVER() AS total_count 
+    FROM hotels h 
+    WHERE 1=1
+  `;
   let params = [];
   let paramIndex = 1;
 
@@ -94,8 +111,8 @@ exports.createHotel = async (req, res) => {
     if (roomTypes && roomTypes.length > 0) {
       for (const rt of roomTypes) {
         await db.query(
-          'INSERT INTO room_types (hotel_id, name, start_date, end_date, allotment, single_price, double_price, extra_bed_adult, extra_bed_child, extra_bed_shared, food_adult_abf, currency_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)',
-          [hotelId, rt.name, rt.start_date || '2024-01-01', rt.end_date || '2025-12-31', rt.allotment || 0, rt.single_price || 0, rt.double_price || 0, rt.extra_bed_adult || 0, rt.extra_bed_child || 0, rt.extra_bed_shared || 0, rt.food_adult_abf || 0, rt.currency_id || 1]
+          'INSERT INTO room_types (hotel_id, name, start_date, end_date, allotment, single_price, double_price, extra_bed_adult, extra_bed_child, extra_bed_shared, food_adult_abf, food_adult_lunch, food_adult_dinner, food_child_abf, food_child_lunch, food_child_dinner, currency_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)',
+          [hotelId, rt.name, rt.start_date || '2024-01-01', rt.end_date || '2025-12-31', rt.allotment || 0, rt.single_price || 0, rt.double_price || 0, rt.extra_bed_adult || 0, rt.extra_bed_child || 0, rt.extra_bed_shared || 0, rt.food_adult_abf || 0, rt.food_adult_lunch || 0, rt.food_adult_dinner || 0, rt.food_child_abf || 0, rt.food_child_lunch || 0, rt.food_child_dinner || 0, rt.currency_id || 1]
         );
       }
     }
@@ -103,16 +120,16 @@ exports.createHotel = async (req, res) => {
     if (promotions && promotions.length > 0) {
       for (const p of promotions) {
         await db.query(
-          'INSERT INTO hotel_promotions (hotel_id, name, promotion_code, discount_amount, discount_type, enabled) VALUES ($1, $2, $3, $4, $5, $6)',
-          [hotelId, p.name, p.promotion_code || '', p.discount_amount || 0, p.discount_type || '%', p.enabled !== false]
+          'INSERT INTO hotel_promotions (hotel_id, name, promotion_code, booking_date_from, booking_date_to, travel_date_from, travel_date_to, early_bird_days, minimum_nights, enabled, discount_amount, discount_type, valid_for_extra_beds, free_meals_abf, free_meals_lunch, free_meals_dinner, description) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)',
+          [hotelId, p.name, p.promotion_code || '', p.booking_date_from, p.booking_date_to, p.travel_date_from, p.travel_date_to, p.early_bird_days, p.minimum_nights, p.enabled !== false, p.discount_amount || 0, p.discount_type || '%', p.valid_for_extra_beds || false, p.free_meals_abf || 0, p.free_meals_lunch || 0, p.free_meals_dinner || 0, p.description || '']
         );
       }
     }
 
     if (fees) {
       await db.query(
-        'INSERT INTO hotel_fees (hotel_id, early_checkin_fee, late_checkout_fee, christmas_dinner_fee, new_year_dinner_fee) VALUES ($1, $2, $3, $4, $5)',
-        [hotelId, fees.early_checkin_fee || 0, fees.late_checkout_fee || 0, fees.christmas_dinner_fee || 0, fees.new_year_dinner_fee || 0]
+        'INSERT INTO hotel_fees (hotel_id, early_checkin_fee, late_checkout_fee, late_checkout_21_fee, christmas_dinner_fee, new_year_dinner_fee) VALUES ($1, $2, $3, $4, $5, $6)',
+        [hotelId, fees.early_checkin_fee || 0, fees.late_checkout_fee || 0, fees.late_checkout_21_fee || 0, fees.christmas_dinner_fee || 0, fees.new_year_dinner_fee || 0]
       );
     }
 
@@ -163,8 +180,8 @@ exports.updateHotel = async (req, res) => {
     if (roomTypes && roomTypes.length > 0) {
       for (const rt of roomTypes) {
         await db.query(
-          'INSERT INTO room_types (hotel_id, name, start_date, end_date, allotment, single_price, double_price, extra_bed_adult, extra_bed_child, extra_bed_shared, food_adult_abf, currency_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)',
-          [id, rt.name, rt.start_date || '2024-01-01', rt.end_date || '2025-12-31', rt.allotment || 0, rt.single_price || 0, rt.double_price || 0, rt.extra_bed_adult || 0, rt.extra_bed_child || 0, rt.extra_bed_shared || 0, rt.food_adult_abf || 0, rt.currency_id || 1]
+          'INSERT INTO room_types (hotel_id, name, start_date, end_date, allotment, single_price, double_price, extra_bed_adult, extra_bed_child, extra_bed_shared, food_adult_abf, food_adult_lunch, food_adult_dinner, food_child_abf, food_child_lunch, food_child_dinner, currency_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)',
+          [id, rt.name, rt.start_date || '2024-01-01', rt.end_date || '2025-12-31', rt.allotment || 0, rt.single_price || 0, rt.double_price || 0, rt.extra_bed_adult || 0, rt.extra_bed_child || 0, rt.extra_bed_shared || 0, rt.food_adult_abf || 0, rt.food_adult_lunch || 0, rt.food_adult_dinner || 0, rt.food_child_abf || 0, rt.food_child_lunch || 0, rt.food_child_dinner || 0, rt.currency_id || 1]
         );
       }
     }
@@ -173,8 +190,8 @@ exports.updateHotel = async (req, res) => {
     if (promotions && promotions.length > 0) {
       for (const p of promotions) {
         await db.query(
-          'INSERT INTO hotel_promotions (hotel_id, name, promotion_code, discount_amount, discount_type, enabled) VALUES ($1, $2, $3, $4, $5, $6)',
-          [id, p.name, p.promotion_code || '', p.discount_amount || 0, p.discount_type || '%', p.enabled !== false]
+          'INSERT INTO hotel_promotions (hotel_id, name, promotion_code, booking_date_from, booking_date_to, travel_date_from, travel_date_to, early_bird_days, minimum_nights, enabled, discount_amount, discount_type, valid_for_extra_beds, free_meals_abf, free_meals_lunch, free_meals_dinner, description) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)',
+          [id, p.name, p.promotion_code || '', p.booking_date_from, p.booking_date_to, p.travel_date_from, p.travel_date_to, p.early_bird_days, p.minimum_nights, p.enabled !== false, p.discount_amount || 0, p.discount_type || '%', p.valid_for_extra_beds || false, p.free_meals_abf || 0, p.free_meals_lunch || 0, p.free_meals_dinner || 0, p.description || '']
         );
       }
     }
@@ -182,8 +199,8 @@ exports.updateHotel = async (req, res) => {
     await db.query('DELETE FROM hotel_fees WHERE hotel_id = $1', [id]);
     if (fees) {
       await db.query(
-        'INSERT INTO hotel_fees (hotel_id, early_checkin_fee, late_checkout_fee, christmas_dinner_fee, new_year_dinner_fee) VALUES ($1, $2, $3, $4, $5)',
-        [id, fees.early_checkin_fee || 0, fees.late_checkout_fee || 0, fees.christmas_dinner_fee || 0, fees.new_year_dinner_fee || 0]
+        'INSERT INTO hotel_fees (hotel_id, early_checkin_fee, late_checkout_fee, late_checkout_21_fee, christmas_dinner_fee, new_year_dinner_fee) VALUES ($1, $2, $3, $4, $5, $6)',
+        [id, fees.early_checkin_fee || 0, fees.late_checkout_fee || 0, fees.late_checkout_21_fee || 0, fees.christmas_dinner_fee || 0, fees.new_year_dinner_fee || 0]
       );
     }
 
