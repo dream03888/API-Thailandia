@@ -1,7 +1,7 @@
 const db = require('../db');
 
 exports.listTransfers = async (req, res) => {
-  const { city, country, search, limit, page } = req.query;
+  const { city, country, transfer_type, search, limit, page } = req.query;
   const pLimit = parseInt(limit) || 25;
   const pPage = parseInt(page) || 1;
   const offset = (pPage - 1) * pLimit;
@@ -22,6 +22,10 @@ exports.listTransfers = async (req, res) => {
   if (country) {
     query += ` AND t.country = $${paramIndex++}`;
     params.push(country);
+  }
+  if (transfer_type) {
+    query += ` AND t.transfer_type = $${paramIndex++}`;
+    params.push(transfer_type);
   }
   if (search) {
     query += ` AND (t.description ILIKE $${paramIndex} OR t.departure ILIKE $${paramIndex} OR t.arrival ILIKE $${paramIndex} OR t.supplier_name ILIKE $${paramIndex})`;
