@@ -63,6 +63,7 @@ const otherChargeRoutes = require('./src/routes/other-charges');
 const paymentRoutes = require('./src/routes/payments');
 const emailRoutes = require('./src/routes/email');
 const notificationRoutes = require('./src/routes/notifications');
+const analyticsRoutes = require('./src/routes/analytics');
 const userController = require('./src/controllers/userController');
 
 // Use Routes
@@ -80,6 +81,7 @@ app.use('/api/v1/other-charges', otherChargeRoutes);
 app.use('/api/v1/payments', paymentRoutes);
 app.use('/api/v1/emails', emailRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
+app.use('/api/v1/analytics', analyticsRoutes);
 
 // Start Server
 httpServer.listen(PORT, async () => {
