@@ -114,10 +114,9 @@ exports.createTrip = async (req, res) => {
   try {
     await db.query('BEGIN');
     
-    // Status logic: 'Approved' means approved=true, others like 'Pending' or 'InProgress' mean both false.
-    const approved = req.body.status === 'Approved';
+    // Status: Only 'Declined' is a special state. Everything else is InProgress (approved=false, declined=false).
+    const approved = false; // Approved status removed — no longer used
     const declined = req.body.status === 'Declined';
-    // 'InProgress' result in approved=false, declined=false
 
     // Enforcement: If the user is an agent, lock the agent_id to their own ID.
     // This prevents data from 'disappearing' from their list due to null/mismatched agent_id.
@@ -386,9 +385,9 @@ exports.updateTrip = async (req, res) => {
 };
 
 exports.updateTripStatus = async (req, res) => {
-  const { status } = req.body; // e.g., 'Approved', 'InProgress', 'Declined'
+  const { status } = req.body; // e.g., 'InProgress', 'Declined'
   try {
-    const approved = status === 'Approved';
+    const approved = false; // Approved status removed
     const declined = status === 'Declined';
     const result = await db.query(
       'UPDATE trips SET approved=$1, declined=$2, updated_at=CURRENT_TIMESTAMP WHERE id::text=$3 RETURNING *',
@@ -486,14 +485,22 @@ exports.deleteTrip = async (req, res) => {
 exports.convertToBooking = async (req, res) => {
   const { id } = req.params;
   try {
+    // Guard: check if already converted
+    const existing = await db.query(
+      'SELECT is_booking FROM trips WHERE id::text = $1 OR uuid::text = $1',
+      [id]
+    );
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ message: 'Trip not found' });
+    }
+    if (existing.rows[0].is_booking === true) {
+      return res.status(409).json({ message: 'This trip has already been converted to a booking.' });
+    }
+
     const result = await db.query(
       'UPDATE trips SET is_booking = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id::text = $1 OR uuid::text = $1 RETURNING *',
       [id]
     );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Trip not found' });
-    }
     const trip = result.rows[0];
 
     // Notification

@@ -2,17 +2,24 @@ const db = require('../db');
 
 exports.listPayments = async (req, res) => {
   const { start_date, end_date } = req.query;
+  const user = req.user;
   try {
     let query = `
       SELECT t.*, a.name as agent_name 
       FROM trips t 
       LEFT JOIN agents a ON t.agent_id = a.id 
-      WHERE t.approved = true
+      WHERE (t.approved = true OR t.is_booking = true)
     `;
     let params = [];
     
+    // Ownership filtering
+    if (user.role !== 'admin' && user.role !== 'superadmin') {
+      query += ` AND t.user_id = $${params.length + 1}`;
+      params.push(user.id);
+    }
+
     if (start_date && end_date) {
-      query += ' AND t.created_at BETWEEN $1 AND $2';
+      query += ` AND t.created_at BETWEEN $${params.length + 1} AND $${params.length + 2}`;
       params.push(start_date, end_date);
     }
     
