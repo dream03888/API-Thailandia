@@ -21,7 +21,7 @@ exports.listTours = async (req, res) => {
     paramIndex++;
   }
 
-  query += ` ORDER BY name ASC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+  query += ` ORDER BY display_order ASC, name ASC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
   params.push(pLimit, offset);
 
   try {
@@ -76,7 +76,7 @@ exports.createTour = async (req, res) => {
   const client = await db.pool.connect();
   const { 
     name, code, category, description, duration, route, departures, city, valid_days,
-    itinerary, pricing 
+    display_order, itinerary, pricing 
   } = req.body;
 
   try {
@@ -98,9 +98,9 @@ exports.createTour = async (req, res) => {
 
     // 1. Insert into tours
     const tourResult = await client.query(
-      `INSERT INTO tours (name, code, category, description, duration, route, departures, city, valid_days, user_id) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [name, code, category, description, duration, route, normalizedDepartures, city, JSON.stringify(valid_days), req.user.id]
+      `INSERT INTO tours (name, code, category, description, duration, route, departures, city, valid_days, user_id, display_order) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      [name, code, category, description, duration, route, normalizedDepartures, city, JSON.stringify(valid_days), req.user.id, display_order || 0]
     );
     const tourId = tourResult.rows[0].id;
 
@@ -155,7 +155,7 @@ exports.updateTour = async (req, res) => {
   const client = await db.pool.connect();
   const { 
     name, code, category, description, duration, route, departures, city, valid_days,
-    itinerary, pricing 
+    display_order, itinerary, pricing 
   } = req.body;
 
   try {
@@ -186,9 +186,9 @@ exports.updateTour = async (req, res) => {
     const tourResult = await client.query(
       `UPDATE tours SET 
         name=$1, code=$2, category=$3, description=$4, duration=$5, route=$6, departures=$7, city=$8, valid_days=$9, 
-        updated_at=CURRENT_TIMESTAMP 
-       WHERE id=$10 RETURNING *`,
-      [name, code, category, description, duration, route, normalizedDepartures, city, JSON.stringify(valid_days), id]
+        display_order=$10, updated_at=CURRENT_TIMESTAMP 
+       WHERE id=$11 RETURNING *`,
+      [name, code, category, description, duration, route, normalizedDepartures, city, JSON.stringify(valid_days), display_order || 0, id]
     );
 
     // 2. Refresh pricing

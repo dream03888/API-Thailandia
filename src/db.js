@@ -22,6 +22,9 @@ const pool = process.env.DATABASE_URL
 pool.query(`
   ALTER TABLE trips ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'InProgress';
   ALTER TABLE transfers ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0;
+  ALTER TABLE hotels ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0;
+  ALTER TABLE excursions ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0;
+  ALTER TABLE tours ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0;
 `).catch(err => console.error('[DB Migration Error] Failed to add columns:', err));
 
 module.exports = {

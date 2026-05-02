@@ -41,7 +41,7 @@ exports.listHotels = async (req, res) => {
     paramIndex++;
   }
 
-  query += ` ORDER BY name ASC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+  query += ` ORDER BY display_order ASC, name ASC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
   params.push(pLimit, offset);
 
   try {
@@ -82,7 +82,7 @@ exports.getHotel = async (req, res) => {
 };
 
 exports.createHotel = async (req, res) => {
-  const { name, city, notes, address, contacts, roomTypes, promotions, fees } = req.body;
+  const { name, city, notes, address, display_order, contacts, roomTypes, promotions, fees } = req.body;
   try {
     const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
     const permissions = req.user.permissions || {};
@@ -94,8 +94,8 @@ exports.createHotel = async (req, res) => {
     await db.query('BEGIN');
     
     const result = await db.query(
-      'INSERT INTO hotels (name, city, notes, address, user_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [name, city, notes, address, req.user.id]
+      'INSERT INTO hotels (name, city, notes, address, user_id, display_order) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [name, city, notes, address, req.user.id, display_order || 0]
     );
     const hotelId = result.rows[0].id;
 
@@ -144,7 +144,7 @@ exports.createHotel = async (req, res) => {
 
 exports.updateHotel = async (req, res) => {
   const { id } = req.params;
-  const { name, city, notes, address, contacts, roomTypes, promotions, fees } = req.body;
+  const { name, city, notes, address, display_order, contacts, roomTypes, promotions, fees } = req.body;
   try {
     const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
     const permissions = req.user.permissions || {};
@@ -156,8 +156,8 @@ exports.updateHotel = async (req, res) => {
     await db.query('BEGIN');
     
     const result = await db.query(
-      'UPDATE hotels SET name=$1, city=$2, notes=$3, address=$4, updated_at=CURRENT_TIMESTAMP WHERE id=$5 RETURNING *',
-      [name, city, notes, address, id]
+      'UPDATE hotels SET name=$1, city=$2, notes=$3, address=$4, display_order=$5, updated_at=CURRENT_TIMESTAMP WHERE id=$6 RETURNING *',
+      [name, city, notes, address, display_order || 0, id]
     );
 
     if (result.rows.length === 0) {

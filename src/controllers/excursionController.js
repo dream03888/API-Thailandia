@@ -25,7 +25,7 @@ exports.listExcursions = async (req, res) => {
     paramIndex++;
   }
 
-  query += ` ORDER BY name ASC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+  query += ` ORDER BY display_order ASC, name ASC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
   params.push(pLimit, offset);
 
   try {
@@ -75,16 +75,16 @@ exports.createExcursion = async (req, res) => {
     const { 
       name, city, country, code, description, 
       sic_price_adult, sic_price_child, 
-      supplier_name, valid_days, prices 
+      supplier_name, valid_days, display_order, prices 
     } = req.body;
 
     const excursionResult = await client.query(
       `INSERT INTO excursions (
         name, city, country, code, description, 
         sic_price_adult, sic_price_child, 
-        supplier_name, valid_days, user_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [name, city, country || 'Thailand', code, description, sic_price_adult, sic_price_child, supplier_name, valid_days, req.user.id]
+        supplier_name, valid_days, user_id, display_order
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      [name, city, country || 'Thailand', code, description, sic_price_adult, sic_price_child, supplier_name, valid_days, req.user.id, display_order || 0]
     );
 
     const excursionId = excursionResult.rows[0].id;
@@ -141,9 +141,9 @@ exports.updateExcursion = async (req, res) => {
       `UPDATE excursions SET 
         name=$1, city=$2, country=$3, code=$4, description=$5, 
         sic_price_adult=$6, sic_price_child=$7, 
-        supplier_name=$8, valid_days=$9, updated_at=CURRENT_TIMESTAMP 
-      WHERE id=$10 RETURNING *`,
-      [name, city, country || 'Thailand', code, description, sic_price_adult, sic_price_child, supplier_name, valid_days, id]
+        supplier_name=$8, valid_days=$9, display_order=$10, updated_at=CURRENT_TIMESTAMP 
+      WHERE id=$11 RETURNING *`,
+      [name, city, country || 'Thailand', code, description, sic_price_adult, sic_price_child, supplier_name, valid_days, display_order || 0, id]
     );
 
     // Update prices: Delete old and insert new
