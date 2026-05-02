@@ -14,7 +14,7 @@ exports.listTrips = async (req, res) => {
   const user = req.user;
   
   let query = `
-    SELECT t.*, u.username as user_name, a.name as agent_name 
+    SELECT t.*, u.username as user_name, u.email as user_email, a.name as agent_name 
     FROM trips t
     LEFT JOIN users u ON t.user_id = u.id
     LEFT JOIN agents a ON t.agent_id = a.id
@@ -54,7 +54,7 @@ exports.getTrip = async (req, res) => {
   const { id } = req.params;
   try {
     const tripResult = await db.query(`
-      SELECT t.*, u.username as user_name, a.name as agent_name 
+      SELECT t.*, u.username as user_name, u.email as user_email, a.name as agent_name 
       FROM trips t
       LEFT JOIN users u ON t.user_id = u.id
       LEFT JOIN agents a ON t.agent_id = a.id
@@ -385,13 +385,12 @@ exports.updateTrip = async (req, res) => {
 };
 
 exports.updateTripStatus = async (req, res) => {
-  const { status } = req.body; // e.g., 'InProgress', 'Declined'
+  const { status } = req.body; // e.g., 'InProgress', 'Declined', 'Confirm Booking'
   try {
-    const approved = false; // Approved status removed
     const declined = status === 'Declined';
     const result = await db.query(
-      'UPDATE trips SET approved=$1, declined=$2, updated_at=CURRENT_TIMESTAMP WHERE id::text=$3 RETURNING *',
-      [approved, declined, req.params.id]
+      'UPDATE trips SET status=$1, declined=$2, updated_at=CURRENT_TIMESTAMP WHERE id::text=$3 RETURNING *',
+      [status, declined, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ message: 'Trip not found' });
     const trip = result.rows[0];

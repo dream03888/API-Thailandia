@@ -196,3 +196,139 @@ exports.submitRejection = async (req, res) => {
     res.status(500).send('Error updating booking status.');
   }
 };
+exports.sendAgentBookingNotification = async (req, res) => {
+  const { trip_id, agentEmail, status, ...trip } = req.body;
+
+  // Map fields from DB snake_case to readable variables
+  const clientName = trip.client_name || 'N/A';
+  const tripStartDate = trip.trip_start_date ? new Date(trip.trip_start_date).toLocaleDateString() : 'N/A';
+  const pax = trip.number_of_adults || 0;
+
+  try {
+    // 1. Setup nodemailer
+    let transporter;
+    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+      transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST || "smtp.gmail.com",
+        port: parseInt(process.env.SMTP_PORT) || 465,
+        secure: process.env.SMTP_SECURE === 'true' || true,
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+        },
+      });
+    } else {
+      let testAccount = await nodemailer.createTestAccount();
+      transporter = nodemailer.createTransport({
+        host: "smtp.ethereal.email",
+        port: 587,
+        secure: false,
+        auth: {
+          user: testAccount.user,
+          pass: testAccount.pass,
+        },
+      });
+    }
+
+    // 2. Prepare Detailed Content for ALL categories
+    let itineraryHtml = '';
+
+    // Hotels
+    if (trip.hotels && trip.hotels.length > 0) {
+      itineraryHtml += `<div style="margin-bottom: 20px;"><h3 style="color: #FF5E00; border-bottom: 1px solid #eee; padding-bottom: 5px;">🏨 Hotels</h3><table style="width: 100%; border-collapse: collapse;">`;
+      trip.hotels.forEach(h => {
+        itineraryHtml += `<tr style="border-bottom: 1px solid #f0f0f0;"><td style="padding: 8px 0;"><strong>${h.hotel_name || 'Hotel'}</strong><br><small>${new Date(h.from_date).toLocaleDateString()} to ${new Date(h.to_date).toLocaleDateString()} (${h.nights} nights) - ${h.room_type || 'Standard'}</small></td></tr>`;
+      });
+      itineraryHtml += `</table></div>`;
+    }
+
+    // Transfers
+    if (trip.transfers && trip.transfers.length > 0) {
+      itineraryHtml += `<div style="margin-bottom: 20px;"><h3 style="color: #FF5E00; border-bottom: 1px solid #eee; padding-bottom: 5px;">🚗 Transfers</h3><table style="width: 100%; border-collapse: collapse;">`;
+      trip.transfers.forEach(t => {
+        itineraryHtml += `<tr style="border-bottom: 1px solid #f0f0f0;"><td style="padding: 8px 0;"><strong>${t.transfer_type || 'Transfer'}</strong>: ${t.from_location} ➔ ${t.to_location}<br><small>Date: ${new Date(t.from_date).toLocaleDateString()} | Type: ${t.tot || 'PVT'}</small></td></tr>`;
+      });
+      itineraryHtml += `</table></div>`;
+    }
+
+    // Excursions
+    if (trip.excursions && trip.excursions.length > 0) {
+      itineraryHtml += `<div style="margin-bottom: 20px;"><h3 style="color: #FF5E00; border-bottom: 1px solid #eee; padding-bottom: 5px;">📸 Excursions</h3><table style="width: 100%; border-collapse: collapse;">`;
+      trip.excursions.forEach(e => {
+        itineraryHtml += `<tr style="border-bottom: 1px solid #f0f0f0;"><td style="padding: 8px 0;"><strong>${e.excursion_name || 'Activity'}</strong> (${e.city})<br><small>Date: ${new Date(e.from_date).toLocaleDateString()} | Type: ${e.toe || 'PVT'}</small></td></tr>`;
+      });
+      itineraryHtml += `</table></div>`;
+    }
+
+    // Tours
+    if (trip.tours && trip.tours.length > 0) {
+      itineraryHtml += `<div style="margin-bottom: 20px;"><h3 style="color: #FF5E00; border-bottom: 1px solid #eee; padding-bottom: 5px;">🗺️ Tours</h3><table style="width: 100%; border-collapse: collapse;">`;
+      trip.tours.forEach(t => {
+        itineraryHtml += `<tr style="border-bottom: 1px solid #f0f0f0;"><td style="padding: 8px 0;"><strong>${t.tour_name || 'Tour Package'}</strong><br><small>Date: ${new Date(t.from_date).toLocaleDateString()} | Route: ${t.from_location || '-'}</small></td></tr>`;
+      });
+      itineraryHtml += `</table></div>`;
+    }
+
+    // Flights
+    if (trip.flights && trip.flights.length > 0) {
+      itineraryHtml += `<div style="margin-bottom: 20px;"><h3 style="color: #FF5E00; border-bottom: 1px solid #eee; padding-bottom: 5px;">✈️ Flights</h3><table style="width: 100%; border-collapse: collapse;">`;
+      trip.flights.forEach(f => {
+        itineraryHtml += `<tr style="border-bottom: 1px solid #f0f0f0;"><td style="padding: 8px 0;"><strong>Flight ${f.flight_number}</strong> (${f.in_or_out})<br><small>Date: ${new Date(f.from_date).toLocaleDateString()} | Route: ${f.route || '-'}</small></td></tr>`;
+      });
+      itineraryHtml += `</table></div>`;
+    }
+
+    const htmlContent = `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 650px; margin: auto; border: 1px solid #e0e0e0; padding: 0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+        <div style="background-color: #FF5E00; padding: 30px; text-align: center; color: white;">
+          <h1 style="margin: 0; font-size: 24px; letter-spacing: 1px;">BOOKING CONFIRMATION</h1>
+          <p style="margin: 5px 0 0 0; opacity: 0.9;">Trip ID: ${trip_id}</p>
+        </div>
+        
+        <div style="padding: 30px; color: #444;">
+          <p style="font-size: 16px;">Dear <strong>Agent</strong>,</p>
+          <p>We are pleased to confirm the booking for your client with the following details:</p>
+          
+          <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #FF5E00;">
+            <table style="width: 100%;">
+              <tr><td style="padding: 4px 0; color: #666; width: 140px;">Client Name:</td><td style="font-weight: bold;">${clientName}</td></tr>
+              <tr><td style="padding: 4px 0; color: #666;">Trip Start Date:</td><td style="font-weight: bold;">${tripStartDate}</td></tr>
+              <tr><td style="padding: 4px 0; color: #666;">Number of Pax:</td><td style="font-weight: bold;">${pax} Adults</td></tr>
+              ${trip.booking_reference ? `<tr><td style="padding: 4px 0; color: #666;">Booking Ref:</td><td style="font-weight: bold;">${trip.booking_reference}</td></tr>` : ''}
+            </table>
+          </div>
+
+          <div style="margin-top: 30px;">
+            ${itineraryHtml || '<p style="font-style: italic; color: #999;">No specific service items found for this booking.</p>'}
+          </div>
+
+          <div style="text-align: center; margin-top: 40px; padding: 30px; border-top: 1px solid #eee; background-color: #fcfcfc;">
+            <div style="display: inline-block; padding: 15px 35px; background-color: #28a745; color: white; border-radius: 8px; font-weight: bold; font-size: 20px; box-shadow: 0 4px 10px rgba(40,167,69,0.2);">
+              ${status === 'Confirm Booking' ? 'CONFIRM BOOKING' : status.toUpperCase()}
+            </div>
+            <p style="color: #28a745; font-weight: bold; font-size: 14px; margin-top: 15px;">This booking is now officially confirmed in our system.</p>
+          </div>
+
+          <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; font-size: 13px; color: #888;">
+            <p style="margin: 0;">Kind Regards,</p>
+            <p style="margin: 5px 0 0 0; font-weight: bold; color: #444; font-size: 15px;">Thailandia Operations Team</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // 3. Send email
+    await transporter.sendMail({
+      from: `"Thailandia Booking" <${process.env.SMTP_FROM || 'booking@thailandia.com'}>`,
+      to: agentEmail || process.env.SMTP_USER,
+      subject: `Booking Confirmed: ${clientName} - Trip ID: ${trip_id}`,
+      html: htmlContent,
+    });
+
+    res.json({ message: 'Notification email sent to Agent successfully!' });
+
+  } catch (err) {
+    console.error('Email sending error:', err);
+    res.status(500).json({ message: 'Error sending email: ' + err.message });
+  }
+};

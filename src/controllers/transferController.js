@@ -33,7 +33,7 @@ exports.listTransfers = async (req, res) => {
     paramIndex++;
   }
 
-  query += ` ORDER BY t.id DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+  query += ` ORDER BY t.display_order ASC, t.id DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
   params.push(pLimit, offset);
 
   try {
@@ -75,7 +75,7 @@ exports.getTransfer = async (req, res) => {
 exports.createTransfer = async (req, res) => {
   const { 
     transfer_type, city, country, description, departure, arrival, 
-    supplier_id, supplier_name, sic_price_adult, sic_price_child, pricing 
+    supplier_id, supplier_name, sic_price_adult, sic_price_child, display_order, pricing 
   } = req.body;
   const client = await db.pool.connect();
   try {
@@ -92,12 +92,12 @@ exports.createTransfer = async (req, res) => {
     const result = await client.query(
       `INSERT INTO transfers (
         transfer_type, city, country, description, departure, arrival,
-        supplier_id, supplier_name, sic_price_adult, sic_price_child, user_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+        supplier_id, supplier_name, sic_price_adult, sic_price_child, user_id, display_order
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
       [
         transfer_type, city, country || 'Thailand', description, departure, arrival,
         supplier_id || null, supplier_name || null,
-        sic_price_adult || 0, sic_price_child || 0, req.user.id
+        sic_price_adult || 0, sic_price_child || 0, req.user.id, display_order || 0
       ]
     );
     const transferId = result.rows[0].id;
@@ -126,7 +126,7 @@ exports.createTransfer = async (req, res) => {
 exports.updateTransfer = async (req, res) => {
   const { 
     transfer_type, city, country, description, departure, arrival, 
-    supplier_id, supplier_name, sic_price_adult, sic_price_child, pricing 
+    supplier_id, supplier_name, sic_price_adult, sic_price_child, display_order, pricing 
   } = req.body;
   const { id } = req.params;
   const client = await db.pool.connect();
@@ -152,13 +152,13 @@ exports.updateTransfer = async (req, res) => {
       `UPDATE transfers SET 
         transfer_type=$1, city=$2, country=$3, description=$4, 
         departure=$5, arrival=$6, supplier_id=$7, supplier_name=$8,
-        sic_price_adult=$9, sic_price_child=$10,
+        sic_price_adult=$9, sic_price_child=$10, display_order=$11,
         updated_at=CURRENT_TIMESTAMP 
-      WHERE id=$11 RETURNING *`,
+      WHERE id=$12 RETURNING *`,
       [
         transfer_type, city, country || 'Thailand', description,
         departure, arrival, supplier_id || null, supplier_name || null,
-        sic_price_adult || 0, sic_price_child || 0, id
+        sic_price_adult || 0, sic_price_child || 0, display_order || 0, id
       ]
     );
 
