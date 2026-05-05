@@ -19,6 +19,40 @@ exports.listAgents = async (req, res) => {
   }
 };
 
+/** ดึง Markup ของ Agent ที่ผูกกับ user ที่ login อยู่ (ใช้งานได้ทุก role) */
+exports.getMyMarkup = async (req, res) => {
+  const user = req.user;
+  if (!user.agent_id) {
+    return res.status(404).json({ message: 'No agent linked to this user.' });
+  }
+  try {
+    const agentRes = await db.query('SELECT * FROM agents WHERE id = $1', [user.agent_id]);
+    if (agentRes.rows.length === 0) {
+      return res.status(404).json({ message: 'Agent not found.' });
+    }
+    const agent = agentRes.rows[0];
+    if (!agent.markup_group) {
+      return res.status(404).json({ message: 'Agent has no markup group assigned.' });
+    }
+    const markupRes = await db.query(
+      `SELECT m.*, COALESCE(json_agg(hmp.*) FILTER (WHERE hmp.id IS NOT NULL), '[]') AS hotel_markup_percentages
+       FROM markups m
+       LEFT JOIN hotel_markup_percentages hmp ON hmp.markup_id = m.id
+       WHERE LOWER(TRIM(m.markup_group)) = LOWER(TRIM($1))
+       GROUP BY m.id`,
+      [agent.markup_group]
+    );
+    if (markupRes.rows.length === 0) {
+      return res.status(404).json({ message: `Markup group '${agent.markup_group}' not found.` });
+    }
+    res.json(markupRes.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+
 exports.createAgent = async (req, res) => {
   const { name, markup_group, address, email, telephone, fax } = req.body;
   try {
