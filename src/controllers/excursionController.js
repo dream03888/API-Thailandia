@@ -119,7 +119,7 @@ exports.updateExcursion = async (req, res) => {
     const { 
       name, city, country, code, description, 
       sic_price_adult, sic_price_child, 
-      supplier_name, valid_days, prices 
+      supplier_name, valid_days, display_order, prices 
     } = req.body;
 
     const excRes = await client.query('SELECT user_id FROM excursions WHERE id = $1', [id]);
