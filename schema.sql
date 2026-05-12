@@ -108,7 +108,9 @@ CREATE TABLE IF NOT EXISTS agents (
     address TEXT,
     email VARCHAR(100) UNIQUE NOT NULL,
     telephone VARCHAR(20),
-    fax VARCHAR(20)
+    fax VARCHAR(20),
+    payment_deadline_type VARCHAR(20) DEFAULT 'eom',
+    payment_deadline_days INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS markups (

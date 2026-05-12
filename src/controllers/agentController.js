@@ -54,11 +54,11 @@ exports.getMyMarkup = async (req, res) => {
 
 
 exports.createAgent = async (req, res) => {
-  const { name, markup_group, address, email, telephone, fax } = req.body;
+  const { name, markup_group, address, email, telephone, fax, payment_deadline_type, payment_deadline_days } = req.body;
   try {
     const result = await db.query(
-      'INSERT INTO agents (name, markup_group, address, email, telephone, fax, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [name, markup_group, address, email, telephone, fax, req.user.id]
+      'INSERT INTO agents (name, markup_group, address, email, telephone, fax, user_id, payment_deadline_type, payment_deadline_days) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+      [name, markup_group, address, email, telephone, fax, req.user.id, payment_deadline_type || 'eom', payment_deadline_days || 0]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -73,7 +73,7 @@ exports.createAgent = async (req, res) => {
 
 exports.updateAgent = async (req, res) => {
   const user = req.user;
-  const { name, markup_group, address, email, telephone, fax } = req.body;
+  const { name, markup_group, address, email, telephone, fax, payment_deadline_type, payment_deadline_days } = req.body;
   try {
     // Check ownership
     const agentRes = await db.query('SELECT user_id FROM agents WHERE id = $1', [req.params.id]);
@@ -84,8 +84,8 @@ exports.updateAgent = async (req, res) => {
     }
 
     const result = await db.query(
-      'UPDATE agents SET name=$1, markup_group=$2, address=$3, email=$4, telephone=$5, fax=$6 WHERE id=$7 RETURNING *',
-      [name, markup_group, address, email, telephone, fax, req.params.id]
+      'UPDATE agents SET name=$1, markup_group=$2, address=$3, email=$4, telephone=$5, fax=$6, payment_deadline_type=$7, payment_deadline_days=$8 WHERE id=$9 RETURNING *',
+      [name, markup_group, address, email, telephone, fax, payment_deadline_type || 'eom', payment_deadline_days || 0, req.params.id]
     );
     res.json(result.rows[0]);
   } catch (err) {
