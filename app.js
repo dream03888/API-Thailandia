@@ -65,6 +65,7 @@ const emailRoutes = require('./src/routes/email');
 const notificationRoutes = require('./src/routes/notifications');
 const analyticsRoutes = require('./src/routes/analytics');
 const countryRoutes = require('./src/routes/countryRoutes');
+const cityRoutes = require('./src/routes/cityRoutes');
 const userController = require('./src/controllers/userController');
 
 // Use Routes
@@ -84,6 +85,7 @@ app.use('/api/v1/emails', emailRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/countries', countryRoutes);
+app.use('/api/v1/cities', cityRoutes);
 
 // Start Server
 httpServer.listen(PORT, async () => {
