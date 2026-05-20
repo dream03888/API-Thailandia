@@ -33,7 +33,7 @@ exports.listTransfers = async (req, res) => {
     paramIndex++;
   }
 
-  query += ` ORDER BY t.display_order ASC, t.id DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+  query += ` ORDER BY t.id DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
   params.push(pLimit, offset);
 
   try {
@@ -89,8 +89,7 @@ exports.createTransfer = async (req, res) => {
 
     await client.query('BEGIN');
 
-    const result = await client.query(
-      `INSERT INTO transfers (
+    const result = await client.query(`INSERT  INTO transfers (
         transfer_type, city, country, description, departure, arrival,
         supplier_id, supplier_name, sic_price_adult, sic_price_child, user_id, display_order
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
@@ -101,8 +100,7 @@ exports.createTransfer = async (req, res) => {
       ]
     );
     const transferId = result.rows[0].id;
-
-    // Insert pricing if provided
+    console.log('Created transfer with ID:', transferId);
     if (pricing && Array.isArray(pricing)) {
       for (const p of pricing) {
         await client.query(

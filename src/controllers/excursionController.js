@@ -25,7 +25,7 @@ exports.listExcursions = async (req, res) => {
     paramIndex++;
   }
 
-  query += ` ORDER BY display_order ASC, name ASC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+  query += ` ORDER BY id DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
   params.push(pLimit, offset);
 
   try {
