@@ -33,7 +33,7 @@ exports.listTransfers = async (req, res) => {
     paramIndex++;
   }
 
-  query += ` ORDER BY t.display_order ASC, t.id DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+  query += ` ORDER BY t.id DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
   params.push(pLimit, offset);
 
   try {
