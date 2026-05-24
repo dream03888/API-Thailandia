@@ -26,6 +26,21 @@ const migrations = [
   `ALTER TABLE excursions ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0`,
   `ALTER TABLE tours ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0`,
   `ALTER TABLE countries ADD COLUMN IF NOT EXISTS province VARCHAR(255)`,
+  // Widen markup numeric columns from NUMERIC(5,2) to NUMERIC(10,2) to allow values >= 1000
+  `DO $$ BEGIN
+     ALTER TABLE markups ALTER COLUMN excursion_markup TYPE NUMERIC(10,2);
+     ALTER TABLE markups ALTER COLUMN tour_markup TYPE NUMERIC(10,2);
+     ALTER TABLE markups ALTER COLUMN transfer_markup TYPE NUMERIC(10,2);
+   EXCEPTION WHEN undefined_table THEN NULL;
+   END $$`,
+  `DO $$ BEGIN
+     ALTER TABLE hotel_markup_percentages ALTER COLUMN price_from TYPE NUMERIC(10,2);
+     ALTER TABLE hotel_markup_percentages ALTER COLUMN price_to TYPE NUMERIC(10,2);
+     ALTER TABLE hotel_markup_percentages ALTER COLUMN markup_percentage TYPE NUMERIC(10,2);
+   EXCEPTION WHEN undefined_table THEN NULL;
+   END $$`,
+  // Add hotel_markup_unit column so Hotel unit (% vs THB) is persisted
+  `ALTER TABLE markups ADD COLUMN IF NOT EXISTS hotel_markup_unit VARCHAR(10) DEFAULT '%'`,
   `CREATE TABLE IF NOT EXISTS cities (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
