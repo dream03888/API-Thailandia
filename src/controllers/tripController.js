@@ -139,8 +139,8 @@ exports.createTrip = async (req, res) => {
           `INSERT INTO hotel_trip_items (
             trip_item_id, hotel_id, from_date, to_date, city, hotel_name, nights, 
             single_price, double_price, room_type, promotion, meals, room_types_json, 
-            early_check_in, late_check_out, flight_in, flight_out, flight_info, discount, notes
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING *`,
+            early_check_in, late_check_out, flight_in, flight_out, flight_info, discount, notes, promotion_id
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING *`,
           [
             trip.id, item.hotel_id || null, item.checkIn || null, item.checkOut || null, item.city || '', item.hotel || '', item.nights || 0, 
             item.singleRoom || 0, item.doubleRoom || 0, item.roomType || '', item.promotion || '',
@@ -148,10 +148,17 @@ exports.createTrip = async (req, res) => {
             item.roomTypes ? JSON.stringify(item.roomTypes) : null,
             !!item.earlyCheckIn, !!item.lateCheckOut,
             item.flightIn || '', item.flightOut || '', item.flightInfo || '',
-            item.discount || 0, item.notes || ''
+            item.discount || 0, item.notes || '', item.promotion_id || null
           ]
         );
         trip.hotels.push(res.rows[0]);
+        
+        if (item.promotion_id) {
+          await db.query(
+            `INSERT INTO promotion_usage_logs (promotion_id, promotion_name, trip_id, hotel_id, hotel_name, agent_id, discount_amount_applied) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [item.promotion_id, item.promotion || '', trip.id, item.hotel_id || null, item.hotel || '', finalAgentId || null, item.discount || 0]
+          );
+        }
       }
     }
 
@@ -301,6 +308,7 @@ exports.updateTrip = async (req, res) => {
     await db.query('DELETE FROM tour_trip_items WHERE trip_item_id = $1', [trip.id]);
     await db.query('DELETE FROM flight_trip_items WHERE trip_item_id = $1', [trip.id]);
     await db.query('DELETE FROM other_trip_items WHERE trip_item_id = $1', [trip.id]);
+    await db.query('DELETE FROM promotion_usage_logs WHERE trip_id = $1', [trip.id]);
 
     // Insert new items
     trip.hotels = [];
@@ -310,8 +318,8 @@ exports.updateTrip = async (req, res) => {
           `INSERT INTO hotel_trip_items (
             trip_item_id, hotel_id, from_date, to_date, city, hotel_name, nights, 
             single_price, double_price, room_type, promotion, meals, room_types_json, 
-            early_check_in, late_check_out, flight_in, flight_out, flight_info, discount, notes
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING *`,
+            early_check_in, late_check_out, flight_in, flight_out, flight_info, discount, notes, promotion_id
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING *`,
           [
             trip.id, item.hotel_id || null, item.checkIn || null, item.checkOut || null, item.city || '', item.hotel || '', item.nights || 0, 
             item.singleRoom || 0, item.doubleRoom || 0, item.roomType || '', item.promotion || '',
@@ -319,10 +327,16 @@ exports.updateTrip = async (req, res) => {
             item.roomTypes ? JSON.stringify(item.roomTypes) : null,
             !!item.earlyCheckIn, !!item.lateCheckOut,
             item.flightIn || '', item.flightOut || '', item.flightInfo || '',
-            item.discount || 0, item.notes || ''
+            item.discount || 0, item.notes || '', item.promotion_id || null
           ]
         );
         trip.hotels.push(res.rows[0]);
+        if (item.promotion_id) {
+          await db.query(
+            `INSERT INTO promotion_usage_logs (promotion_id, promotion_name, trip_id, hotel_id, hotel_name, agent_id, discount_amount_applied) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [item.promotion_id, item.promotion || '', trip.id, item.hotel_id || null, item.hotel || '', agent_id || null, item.discount || 0]
+          );
+        }
       }
     }
     trip.transfers = [];

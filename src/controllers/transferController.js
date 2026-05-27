@@ -7,7 +7,9 @@ exports.listTransfers = async (req, res) => {
   const offset = (pPage - 1) * pLimit;
 
   let query = `
-    SELECT t.*, COUNT(*) OVER() AS total_count 
+    SELECT t.*, 
+           (SELECT json_agg(tp.*) FROM transfer_pricing tp WHERE tp.transfer_id = t.id) as prices,
+           COUNT(*) OVER() AS total_count 
     FROM transfers t 
     WHERE 1=1
   `;

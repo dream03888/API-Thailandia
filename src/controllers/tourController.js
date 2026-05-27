@@ -6,7 +6,13 @@ exports.listTours = async (req, res) => {
   const pPage = parseInt(page) || 1;
   const offset = (pPage - 1) * pLimit;
 
-  let query = 'SELECT *, COUNT(*) OVER() AS total_count FROM tours WHERE 1=1';
+  let query = `
+    SELECT t.*, 
+           (SELECT json_agg(tp.*) FROM tour_pricing tp WHERE tp.tour_id = t.id) as prices,
+           COUNT(*) OVER() AS total_count 
+    FROM tours t 
+    WHERE 1=1
+  `;
   let params = [];
   let paramIndex = 1;
 
