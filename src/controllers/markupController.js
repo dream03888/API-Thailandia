@@ -50,7 +50,7 @@ exports.createMarkup = async (req, res) => {
       excursion_markup_unit, excursion_markup, 
       tour_markup_unit, tour_markup, 
       transfer_markup_unit, transfer_markup, 
-      hotel_markup_unit,
+      hotel_markup_unit, hotel_markup_value,
       hotel_markup_percentages,
       currency_id
     } = req.body;
@@ -59,12 +59,12 @@ exports.createMarkup = async (req, res) => {
       `INSERT INTO markups (
         markup_group, excursion_markup_unit, excursion_markup, 
         tour_markup_unit, tour_markup, transfer_markup_unit, transfer_markup, 
-        hotel_markup_unit, currency_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+        hotel_markup_unit, hotel_markup_value, currency_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
       [
         markup_group, excursion_markup_unit, excursion_markup, 
         tour_markup_unit, tour_markup, transfer_markup_unit, transfer_markup, 
-        hotel_markup_unit || '%', currency_id || 4
+        hotel_markup_unit || '%', hotel_markup_value || 0, currency_id || 4
       ]
     );
     const markupId = result.rows[0].id;
@@ -99,7 +99,7 @@ exports.updateMarkup = async (req, res) => {
       excursion_markup_unit, excursion_markup, 
       tour_markup_unit, tour_markup, 
       transfer_markup_unit, transfer_markup, 
-      hotel_markup_unit,
+      hotel_markup_unit, hotel_markup_value,
       hotel_markup_percentages,
       currency_id
     } = req.body;
@@ -108,12 +108,12 @@ exports.updateMarkup = async (req, res) => {
       `UPDATE markups SET 
         markup_group=$1, excursion_markup_unit=$2, excursion_markup=$3, 
         tour_markup_unit=$4, tour_markup=$5, transfer_markup_unit=$6, transfer_markup=$7, 
-        hotel_markup_unit=$8, currency_id=$9
-      WHERE id=$10 RETURNING *`,
+        hotel_markup_unit=$8, hotel_markup_value=$9, currency_id=$10
+      WHERE id=$11 RETURNING *`,
       [
         markup_group, excursion_markup_unit, excursion_markup, 
         tour_markup_unit, tour_markup, transfer_markup_unit, transfer_markup, 
-        hotel_markup_unit || '%', currency_id || 4, id
+        hotel_markup_unit || '%', hotel_markup_value || 0, currency_id || 4, id
       ]
     );
     
