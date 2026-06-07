@@ -169,8 +169,8 @@ exports.createTrip = async (req, res) => {
     if (transfers && transfers.length > 0) {
       for (const item of transfers) {
         const res = await db.query(
-          'INSERT INTO transfer_trip_items (trip_item_id, transfer_id, from_location, to_location, from_date, to_date, tot, price, remarks, city, transfer_description, pickup_time, flight_number, flight_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *',
-          [trip.id, item.transfer_id || null, item.from || '', item.to || '', item.date || null, item.date || null, mapToT(item.tot), item.price || 0, item.remarks || '', item.city || '', item.description || '', item.pickup || '', item.flight || '', item.flightTime || '']
+          'INSERT INTO transfer_trip_items (trip_item_id, transfer_id, from_location, to_location, from_date, to_date, tot, price, remarks, city, transfer_description, pickup_time, flight_number, flight_time, type_of_transfer) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *',
+          [trip.id, item.transfer_id || null, item.from || '', item.to || '', item.date || null, item.date || null, mapToT(item.tot), item.price || 0, item.remarks || '', item.city || '', item.description || '', item.pickup || '', item.flight || '', item.flightTime || '', item.typeOfTransfer || item.type_of_transfer || '']
         );
         trip.transfers.push(res.rows[0]);
       }
@@ -346,8 +346,8 @@ exports.updateTrip = async (req, res) => {
     trip.transfers = [];
     if (transfers) {
       for (const item of transfers) {
-        const res = await db.query('INSERT INTO transfer_trip_items (trip_item_id, transfer_id, from_location, to_location, from_date, to_date, tot, price, remarks, city, transfer_description, pickup_time, flight_number, flight_time) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *',
-          [trip.id, item.transfer_id || null, item.from || '', item.to || '', item.date || null, item.date || null, mapToT(item.tot), item.price || 0, item.remarks || '', item.city || '', item.description || '', item.pickup || '', item.flight || '', item.flightTime || '']);
+        const res = await db.query('INSERT INTO transfer_trip_items (trip_item_id, transfer_id, from_location, to_location, from_date, to_date, tot, price, remarks, city, transfer_description, pickup_time, flight_number, flight_time, type_of_transfer) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *',
+          [trip.id, item.transfer_id || null, item.from || '', item.to || '', item.date || null, item.date || null, mapToT(item.tot), item.price || 0, item.remarks || '', item.city || '', item.description || '', item.pickup || '', item.flight || '', item.flightTime || '', item.typeOfTransfer || item.type_of_transfer || '']);
         trip.transfers.push(res.rows[0]);
       }
     }
