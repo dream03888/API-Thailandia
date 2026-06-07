@@ -139,8 +139,8 @@ exports.createTrip = async (req, res) => {
           `INSERT INTO hotel_trip_items (
             trip_item_id, hotel_id, from_date, to_date, city, hotel_name, nights, 
             single_price, double_price, room_type, promotion, meals, room_types_json, 
-            early_check_in, late_check_out, flight_in, flight_out, flight_info, discount, notes, promotion_id
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING *`,
+            early_check_in, late_check_out, flight_in, flight_out, flight_info, discount, notes, promotion_id, total_price, display_order, extra_adult_bed_count, extra_child_bed_count
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING *`,
           [
             trip.id, item.hotel_id || null, item.checkIn || null, item.checkOut || null, item.city || '', item.hotel || '', item.nights || 0, 
             item.singleRoom || 0, item.doubleRoom || 0, item.roomType || '', item.promotion || '',
@@ -148,7 +148,9 @@ exports.createTrip = async (req, res) => {
             item.roomTypes ? JSON.stringify(item.roomTypes) : null,
             !!item.earlyCheckIn, !!item.lateCheckOut,
             item.flightIn || '', item.flightOut || '', item.flightInfo || '',
-            item.discount || 0, item.notes || '', item.promotion_id || null
+            item.discount || 0, item.notes || '', item.promotion_id || null,
+            item.price || 0, item.display_order || 0,
+            item.extraAdultBedCount || 0, item.extraChildBedCount || 0
           ]
         );
         trip.hotels.push(res.rows[0]);
@@ -318,8 +320,8 @@ exports.updateTrip = async (req, res) => {
           `INSERT INTO hotel_trip_items (
             trip_item_id, hotel_id, from_date, to_date, city, hotel_name, nights, 
             single_price, double_price, room_type, promotion, meals, room_types_json, 
-            early_check_in, late_check_out, flight_in, flight_out, flight_info, discount, notes, promotion_id
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING *`,
+            early_check_in, late_check_out, flight_in, flight_out, flight_info, discount, notes, promotion_id, total_price, display_order, extra_adult_bed_count, extra_child_bed_count
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING *`,
           [
             trip.id, item.hotel_id || null, item.checkIn || null, item.checkOut || null, item.city || '', item.hotel || '', item.nights || 0, 
             item.singleRoom || 0, item.doubleRoom || 0, item.roomType || '', item.promotion || '',
@@ -327,7 +329,9 @@ exports.updateTrip = async (req, res) => {
             item.roomTypes ? JSON.stringify(item.roomTypes) : null,
             !!item.earlyCheckIn, !!item.lateCheckOut,
             item.flightIn || '', item.flightOut || '', item.flightInfo || '',
-            item.discount || 0, item.notes || '', item.promotion_id || null
+            item.discount || 0, item.notes || '', item.promotion_id || null,
+            item.price || 0, item.display_order || 0,
+            item.extraAdultBedCount || 0, item.extraChildBedCount || 0
           ]
         );
         trip.hotels.push(res.rows[0]);
