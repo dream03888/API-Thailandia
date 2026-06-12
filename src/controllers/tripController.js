@@ -154,13 +154,6 @@ exports.createTrip = async (req, res) => {
           ]
         );
         trip.hotels.push(res.rows[0]);
-        
-        if (item.promotion_id) {
-          await db.query(
-            `INSERT INTO promotion_usage_logs (promotion_id, promotion_name, trip_id, hotel_id, hotel_name, agent_id, discount_amount_applied) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [item.promotion_id, item.promotion || '', trip.id, item.hotel_id || null, item.hotel || '', finalAgentId || null, item.discount || 0]
-          );
-        }
       }
     }
 
@@ -310,7 +303,6 @@ exports.updateTrip = async (req, res) => {
     await db.query('DELETE FROM tour_trip_items WHERE trip_item_id = $1', [trip.id]);
     await db.query('DELETE FROM flight_trip_items WHERE trip_item_id = $1', [trip.id]);
     await db.query('DELETE FROM other_trip_items WHERE trip_item_id = $1', [trip.id]);
-    await db.query('DELETE FROM promotion_usage_logs WHERE trip_id = $1', [trip.id]);
 
     // Insert new items
     trip.hotels = [];
@@ -335,12 +327,6 @@ exports.updateTrip = async (req, res) => {
           ]
         );
         trip.hotels.push(res.rows[0]);
-        if (item.promotion_id) {
-          await db.query(
-            `INSERT INTO promotion_usage_logs (promotion_id, promotion_name, trip_id, hotel_id, hotel_name, agent_id, discount_amount_applied) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [item.promotion_id, item.promotion || '', trip.id, item.hotel_id || null, item.hotel || '', agent_id || null, item.discount || 0]
-          );
-        }
       }
     }
     trip.transfers = [];
