@@ -61,7 +61,7 @@ const userRoutes = require('./src/routes/users');
 const markupRoutes = require('./src/routes/markups');
 const otherChargeRoutes = require('./src/routes/other-charges');
 const paymentRoutes = require('./src/routes/payments');
-const emailRoutes = require('./src/routes/email');
+
 const notificationRoutes = require('./src/routes/notifications');
 const analyticsRoutes = require('./src/routes/analytics');
 const countryRoutes = require('./src/routes/countryRoutes');
@@ -81,7 +81,7 @@ app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/markups', markupRoutes);
 app.use('/api/v1/other-charges', otherChargeRoutes);
 app.use('/api/v1/payments', paymentRoutes);
-app.use('/api/v1/emails', emailRoutes);
+
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/countries', countryRoutes);
